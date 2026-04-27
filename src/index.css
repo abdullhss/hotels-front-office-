@@ -1,0 +1,51 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+
+@theme {
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  --color-brand-primary: #5b56f7;
+  --color-brand-primary-hover: #4841d4;
+  --color-muted: #f4f4f5;
+  --color-muted-foreground: #71717a;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #0a0a0a;
+  --color-accent: #f4f4f5;
+  --color-accent-foreground: #18181b;
+}
+
+:root {
+  font-family: 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
