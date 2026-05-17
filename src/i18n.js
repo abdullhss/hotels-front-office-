@@ -28,6 +28,20 @@ const resources = {
         exportExcel: 'طباعة',
         filterSelectPrefix: 'برجاء اختيار',
       },
+      bookings: {
+        title: 'إدارة الحجوزات',
+        subtitle: 'عرض و إدارة جميع حجوزات الوحدات',
+        newBooking: 'حجز جديد',
+        listTitle: 'قائمة الحجوزات',
+        searchPlaceholder: 'بحث بالاسم او رقم الهاتف او رقم الوحدة.....',
+        datePlaceholder: 'يوم / شهر / سنة',
+        search: 'بحث',
+        stats: {
+          total: 'إجمالي الحجوزات',
+          confirmed: 'الحجوزات المؤكدة',
+          pending: 'في الانتظار',
+        },
+      },
       dashboard: {
         greeting: 'مساء الخير، مريم',
         date: 'الثلاثاء، 7 أبريل 2026',
@@ -100,6 +114,20 @@ const resources = {
         empty: 'No data',
         exportExcel: 'Export',
         filterSelectPrefix: 'Select',
+      },
+      bookings: {
+        title: 'Bookings management',
+        subtitle: 'View and manage all unit bookings',
+        newBooking: 'New booking',
+        listTitle: 'Bookings list',
+        searchPlaceholder: 'Search by name, phone, or unit number…',
+        datePlaceholder: 'DD / MM / YYYY',
+        search: 'Search',
+        stats: {
+          total: 'Total bookings',
+          confirmed: 'Confirmed bookings',
+          pending: 'Pending',
+        },
       },
       dashboard: {
         greeting: 'Good evening, Mariam',
