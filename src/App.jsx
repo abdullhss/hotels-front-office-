@@ -6,6 +6,8 @@ import AppLayout from './components/AppLayout.jsx'
 import DashboardPage from './pages/dashboard/DashboardPage.jsx'
 import BookingsPage from './pages/bookings/BookingsPage.jsx'
 import NewBookingPage from './pages/new-booking/NewBookingPage.jsx'
+import AllocationPage from './pages/allocation/AllocationPage.jsx'
+import AllocationCheckInPage from './pages/allocation/AllocationCheckInPage.jsx'
 import LoginPage from './pages/login/LoginPage.jsx'
 
 function App() {
@@ -25,7 +27,8 @@ function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/bookings" element={<BookingsPage />} />
           <Route path="/bookings/new" element={<NewBookingPage />} />
-          <Route path="/allocation" element={<DashboardPage />} />
+          <Route path="/allocation" element={<AllocationPage />} />
+          <Route path="/allocation/:bookingId/check-in" element={<AllocationCheckInPage />} />
           <Route path="/units" element={<DashboardPage />} />
           <Route path="/unit-transfer" element={<DashboardPage />} />
           <Route path="/check-out" element={<DashboardPage />} />
