@@ -18,6 +18,10 @@ const resources = {
         rememberMe: 'تذكرني',
         forgotPassword: 'نسيت كلمة المرور؟',
         submit: 'تسجيل الدخول',
+        loading: 'جاري تسجيل الدخول...',
+        requiredFields: 'برجاء إدخال اسم المستخدم وكلمة المرور',
+        invalidCredentials: 'بيانات الدخول غير صحيحة',
+        success: 'تم تسجيل الدخول بنجاح',
       },
       table: {
         rowsPerPage: 'العرض',
@@ -268,6 +272,10 @@ const resources = {
         rememberMe: 'Remember me',
         forgotPassword: 'Forgot password?',
         submit: 'Sign in',
+        loading: 'Signing in...',
+        requiredFields: 'Please enter username and password',
+        invalidCredentials: 'Invalid credentials',
+        success: 'Signed in successfully',
       },
       table: {
         rowsPerPage: 'Rows per page',

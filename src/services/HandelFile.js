@@ -1,6 +1,11 @@
 import axios from "axios";
 import { AES256Encryption } from "../../utils/encryption.js";
-import { getBase64 } from "./UploadImage";
+import { getBase64 } from "./getBase64.js";
+
+function getStoredSessionId() {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem("SessionID") || "";
+}
 
 // https://framework.md-license.com:8093/emsserver.dll/ERPDatabaseWorkFunctions/
 /**
@@ -17,7 +22,8 @@ export class HandelFile {
    * console.log(data)
    * ```
    */
-    async UploadFileWebSite({ action,file,fileId="",SessionID }) {
+    async UploadFileWebSite({ action,file,fileId="" }) {
+      const SessionID = getStoredSessionId();
       if(!file&&action!=='Delete') return console.error("No file provided");
     const convertedFile = {
       MainId:0,
@@ -56,7 +62,8 @@ export class HandelFile {
    * console.log(data)
    * ```
    */
-  async UploadFile({ action, file, fileId = "", SessionID, onProgress, controller }) {
+  async UploadFile({ action, file, fileId = "", onProgress, controller }) {
+  const SessionID = getStoredSessionId();
   if (!file) return console.error("No file provided");
 
   const convertedFile = {
@@ -115,7 +122,8 @@ export class HandelFile {
    * console.log(data)
    * ```
    */
-  async DeleteFile({ fileId="",SessionID }) {
+  async DeleteFile({ fileId="" }) {
+    const SessionID = getStoredSessionId();
     let jsonData = {
       ApiToken: "TTRgG@i$$ol@m$Wegh77",
       Data: AES256Encryption.encrypt({
@@ -149,7 +157,8 @@ export class HandelFile {
  * console.log(fileData)
  * ```
  */
-  async DownloadFile({ fileId="",SessionID }) {
+  async DownloadFile({ fileId="" }) {
+    const SessionID = getStoredSessionId();
     let jsonData = {
       ApiToken: "TTRgG@i$$ol@m$Wegh77",
       Data: AES256Encryption.encrypt({

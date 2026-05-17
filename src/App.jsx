@@ -1,40 +1,45 @@
 import { useEffect } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Toaster } from 'sonner'
+import Login from './components/Login.jsx'
 import AppLayout from './components/AppLayout.jsx'
 import DashboardPage from './pages/dashboard/DashboardPage.jsx'
 import BookingsPage from './pages/bookings/BookingsPage.jsx'
 import NewBookingPage from './pages/new-booking/NewBookingPage.jsx'
 import AllocationPage from './pages/allocation/AllocationPage.jsx'
 import AllocationCheckInPage from './pages/allocation/AllocationCheckInPage.jsx'
-import LoginPage from './pages/login/LoginPage.jsx'
 
 function App() {
   const { i18n } = useTranslation()
   const isArabic = i18n.language === 'ar'
+  useLocation()
+  const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true'
 
   useEffect(() => {
     document.documentElement.lang = i18n.language
     document.documentElement.dir = isArabic ? 'rtl' : 'ltr'
   }, [i18n.language, isArabic])
 
+  const guard = (element) =>
+    isAuthenticated ? element : <Navigate to="/login" replace />
+
   return (
     <>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <Login />} />
         <Route element={<AppLayout />}>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/bookings" element={<BookingsPage />} />
-          <Route path="/bookings/new" element={<NewBookingPage />} />
-          <Route path="/allocation" element={<AllocationPage />} />
-          <Route path="/allocation/:bookingId/check-in" element={<AllocationCheckInPage />} />
-          <Route path="/units" element={<DashboardPage />} />
-          <Route path="/unit-transfer" element={<DashboardPage />} />
-          <Route path="/check-out" element={<DashboardPage />} />
-          <Route path="/customers" element={<DashboardPage />} />
+          <Route path="/" element={guard(<DashboardPage />)} />
+          <Route path="/bookings" element={guard(<BookingsPage />)} />
+          <Route path="/bookings/new" element={guard(<NewBookingPage />)} />
+          <Route path="/allocation" element={guard(<AllocationPage />)} />
+          <Route path="/allocation/:bookingId/check-in" element={guard(<AllocationCheckInPage />)} />
+          <Route path="/units" element={guard(<DashboardPage />)} />
+          <Route path="/unit-transfer" element={guard(<DashboardPage />)} />
+          <Route path="/check-out" element={guard(<DashboardPage />)} />
+          <Route path="/customers" element={guard(<DashboardPage />)} />
         </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to={isAuthenticated ? '/' : '/login'} replace />} />
       </Routes>
       <Toaster richColors position="top-center" dir={isArabic ? 'rtl' : 'ltr'} />
     </>

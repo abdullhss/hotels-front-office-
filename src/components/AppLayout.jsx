@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, Outlet, useLocation } from 'react-router-dom'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   LayoutDashboard,
@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Menu,
   X,
+  LogOut,
 } from 'lucide-react'
 
 import { cn } from '../lib/utils.js'
@@ -73,11 +74,21 @@ function buildSidebarNav(navItems, location, isArabic, onNavigate) {
 
 function AppLayout() {
   const location = useLocation()
+  const navigate = useNavigate()
   const { i18n } = useTranslation()
   const isArabic = i18n.language === 'ar'
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   const closeMobileNav = () => setMobileNavOpen(false)
+  const logoutLabel = isArabic ? 'تسجيل الخروج' : 'Logout'
+
+  const handleLogout = () => {
+    localStorage.removeItem('isAuthenticated')
+    localStorage.removeItem('SessionID')
+    localStorage.removeItem('userData')
+    localStorage.removeItem('userRole')
+    navigate('/login', { replace: true })
+  }
 
   useEffect(() => {
     setMobileNavOpen(false)
@@ -195,6 +206,16 @@ function AppLayout() {
             </button>
           </div>
           <nav className="space-y-1.5">{buildSidebarNav(navItems, location, isArabic, closeMobileNav)}</nav>
+          <div className="mt-6 border-t border-[#dce3ee] pt-4">
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#dce3ee] bg-white px-4 py-3 text-sm font-medium text-[#374151] transition hover:bg-[#eef2ff] hover:text-[#5b56f7]"
+            >
+              <LogOut size={18} strokeWidth={1.9} />
+              <span>{logoutLabel}</span>
+            </button>
+          </div>
         </aside>
 
         {/* Main content */}
