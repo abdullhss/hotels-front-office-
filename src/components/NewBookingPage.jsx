@@ -30,7 +30,11 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from './ui/accordion.jsx'
+import NewBookingStayStep from './NewBookingStayStep.jsx'
+import NewBookingPaymentStep from './NewBookingPaymentStep.jsx'
 import { cn } from '../lib/utils'
+
+const STEP_ORDER = ['individuals', 'booking', 'payment']
 
 const EMPTY_FORM = {
   bookingNumber: '',
@@ -211,6 +215,43 @@ function AccordionChevron() {
 const formRowClass =
   'rounded-xl border border-[#e8ecf2] bg-linear-to-b from-[#fafbfd] to-white p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]'
 
+function BookingStepper({ currentStep, t }) {
+  const steps = [
+    { key: 'individuals', label: t('newBooking.steps.individuals'), icon: Users },
+    { key: 'booking', label: t('newBooking.steps.booking'), icon: BedDouble },
+    { key: 'payment', label: t('newBooking.steps.payment'), icon: CreditCard },
+  ]
+  const currentIdx = STEP_ORDER.indexOf(currentStep)
+
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+      {steps.map((step, idx) => {
+        const Icon = step.icon
+        const isCompleted = idx < currentIdx
+        const isActive = step.key === currentStep
+        return (
+          <div
+            key={step.key}
+            className={cn(
+              'flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-all sm:px-4',
+              isCompleted && 'bg-[#059669] text-white shadow-sm',
+              isActive && !isCompleted && 'bg-brand-primary text-white shadow-md',
+              !isCompleted && !isActive && 'text-[#9ca3af]'
+            )}
+          >
+            {isCompleted ? (
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+            ) : (
+              <Icon className="h-4 w-4 shrink-0" />
+            )}
+            <span>{step.label}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function FormRow({ icon: Icon, title, hint, children, accent = 'bg-[#eef2ff] text-brand-primary' }) {
   return (
     <div className={formRowClass}>
@@ -241,6 +282,7 @@ function NewBookingPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedExistingClientId, setSelectedExistingClientId] = useState('')
   const [form, setForm] = useState(EMPTY_FORM)
+  const [currentStep, setCurrentStep] = useState('individuals')
 
   const updateField = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -272,11 +314,23 @@ function NewBookingPage() {
     { value: 'companies', label: t('newBooking.fields.companies'), icon: Building2 },
   ]
 
-  const steps = [
-    { key: 'individuals', label: t('newBooking.steps.individuals'), icon: Users, active: true },
-    { key: 'booking', label: t('newBooking.steps.booking'), icon: BedDouble, active: false },
-    { key: 'payment', label: t('newBooking.steps.payment'), icon: CreditCard, active: false },
-  ]
+  const pageHeader =
+    currentStep === 'booking'
+      ? { title: t('newBooking.stay.title'), subtitle: t('newBooking.stay.subtitle') }
+      : currentStep === 'payment'
+        ? { title: t('newBooking.payment.title'), subtitle: t('newBooking.payment.subtitle') }
+        : { title: t('newBooking.title'), subtitle: t('newBooking.subtitle') }
+
+  const handleNext = () => {
+    if (currentStep === 'individuals') setCurrentStep('booking')
+    else if (currentStep === 'booking') setCurrentStep('payment')
+  }
+
+  const handleBack = () => {
+    if (currentStep === 'booking') setCurrentStep('individuals')
+    else if (currentStep === 'payment') setCurrentStep('booking')
+    else navigate('/bookings')
+  }
 
   return (
     <section className="mx-auto max-w-[1200px] space-y-4">
@@ -285,30 +339,15 @@ function NewBookingPage() {
           <CalendarDays className="h-5 w-5" />
         </span>
         <div>
-          <h1 className="m-0 text-xl font-bold text-[#111827] sm:text-2xl">
-            {t('newBooking.title')}
-          </h1>
-          <p className="mt-0.5 text-sm text-[#6b7280]">{t('newBooking.subtitle')}</p>
+          <h1 className="m-0 text-xl font-bold text-[#111827] sm:text-2xl">{pageHeader.title}</h1>
+          <p className="mt-0.5 text-sm text-[#6b7280]">{pageHeader.subtitle}</p>
         </div>
       </header>
 
-      <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-4">
-        {steps.map((step) => {
-          const Icon = step.icon
-          return (
-            <div
-              key={step.key}
-              className={cn(
-                'flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium sm:px-4',
-                step.active ? 'bg-brand-primary text-white' : 'text-[#9ca3af]'
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              <span>{step.label}</span>
-            </div>
-          )
-        })}
-      </div>
+      <BookingStepper currentStep={currentStep} t={t} />
+
+      {currentStep === 'individuals' && (
+        <>
 
       <div className={panelClass}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -657,38 +696,70 @@ function NewBookingPage() {
           </AccordionContent>
         </AccordionItem>
       </Accordion>
+        </>
+      )}
 
-      <div
-        className={cn(
-          panelClass,
-          'flex flex-col-reverse items-stretch justify-between gap-3 sm:flex-row sm:items-center'
-        )}
-      >
-        <div className="flex flex-wrap items-center gap-3">
+      {currentStep === 'booking' && <NewBookingStayStep />}
+
+      {currentStep === 'payment' && <NewBookingPaymentStep />}
+
+      {currentStep === 'payment' ? (
+        <div className={cn(panelClass, 'flex flex-col gap-3 sm:flex-row sm:flex-wrap')}>
+          <button
+            type="button"
+            className="inline-flex flex-1 items-center justify-center rounded-xl bg-brand-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-primary-hover sm:min-w-[140px]"
+          >
+            {t('newBooking.payment.confirmBooking')}
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/allocation')}
+            className="inline-flex flex-1 items-center justify-center rounded-xl bg-[#0d9488] px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-[#0f766e] sm:min-w-[140px]"
+          >
+            {t('newBooking.payment.goToAllocation')}
+          </button>
           <button
             type="button"
             onClick={() => navigate('/bookings')}
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#fecaca] bg-white px-6 py-3 text-sm font-medium text-[#dc2626] transition-colors hover:bg-[#fef2f2] sm:flex-none"
+            className="inline-flex flex-1 items-center justify-center rounded-xl border border-[#fecaca] bg-white px-6 py-3 text-sm font-medium text-[#dc2626] transition-colors hover:bg-[#fef2f2] sm:min-w-[140px]"
           >
-            {t('newBooking.cancel')}
-          </button>
-          <button
-            type="button"
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-primary-hover sm:flex-none"
-          >
-            {t('newBooking.next')}
-            <ChevronLeft className="h-4 w-4" />
+            {t('newBooking.payment.cancel')}
           </button>
         </div>
-        <button
-          type="button"
-          onClick={() => navigate('/bookings')}
-          className="inline-flex items-center justify-center gap-2 self-end rounded-xl border border-[#e2e8f0] bg-white px-4 py-2 text-sm font-medium text-[#6b7280] transition-colors hover:bg-[#f8fafc] sm:self-auto"
+      ) : (
+        <div
+          className={cn(
+            panelClass,
+            'flex flex-col-reverse items-stretch justify-between gap-3 sm:flex-row sm:items-center'
+          )}
         >
-          <ChevronRight className="h-4 w-4" />
-          {t('newBooking.back')}
-        </button>
-      </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/bookings')}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#fecaca] bg-white px-6 py-3 text-sm font-medium text-[#dc2626] transition-colors hover:bg-[#fef2f2] sm:flex-none"
+            >
+              {t('newBooking.cancel')}
+            </button>
+            <button
+              type="button"
+              onClick={handleNext}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-primary-hover sm:flex-none"
+            >
+              {t('newBooking.next')}
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={handleBack}
+            className="inline-flex items-center justify-center gap-2 self-end rounded-xl border border-[#e2e8f0] bg-white px-4 py-2 text-sm font-medium text-[#6b7280] transition-colors hover:bg-[#f8fafc] sm:self-auto"
+          >
+            <ChevronRight className="h-4 w-4" />
+            {t('newBooking.back')}
+          </button>
+        </div>
+      )}
     </section>
   )
 }
