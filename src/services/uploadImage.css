@@ -1,0 +1,7 @@
+.upload-image-card-trigger {
+  border-style: solid !important;
+}
+
+.upload-image-card-trigger:hover {
+  border-color: #2a2a2d33 !important;
+}

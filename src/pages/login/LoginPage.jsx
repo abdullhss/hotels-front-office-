@@ -1,7 +1,7 @@
-import bgImage from '../assets/hotels login image.webp'
+import bgImage from '../../assets/hotels login image.webp'
 import { useTranslation } from 'react-i18next'
 
-function Login() {
+function LoginPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language === 'ar'
   const gradientAngle = isArabic ? 90 : 270
@@ -18,8 +18,6 @@ function Login() {
         backgroundRepeat: 'no-repeat',
       }}
     >
-      {/* Overlay Gradient */}
-
       <section className="relative z-[1] w-full max-w-[460px] text-[#f5f7ff]" aria-label={t('login.ariaLabel')}>
         <p className="m-0 text-[0.86rem] font-bold tracking-[0.33em]">LUXESTAY</p>
         <p className="mb-[22px] mt-1 text-[rgba(223,229,255,0.75)]">{t('login.subtitle')}</p>
@@ -27,15 +25,11 @@ function Login() {
         <h1 className="m-0 text-[clamp(2rem,5vw,3.1rem)] leading-[1.15] text-white">
           {t('login.title')}
         </h1>
-        <p className="mb-7 mt-3 text-[rgba(223,229,255,0.75)]">
-          {t('login.description')}
-        </p>
+        <p className="mb-7 mt-3 text-[rgba(223,229,255,0.75)]">{t('login.description')}</p>
 
         <form className="grid gap-3">
           <label className="grid gap-[7px]">
-            <span className="text-[0.84rem] text-[rgba(232,236,255,0.9)]">
-              {t('login.username')}
-            </span>
+            <span className="text-[0.84rem] text-[rgba(232,236,255,0.9)]">{t('login.username')}</span>
             <input
               type="text"
               placeholder="AHMED"
@@ -44,9 +38,7 @@ function Login() {
           </label>
 
           <label className="grid gap-[7px]">
-            <span className="text-[0.84rem] text-[rgba(232,236,255,0.9)]">
-              {t('login.password')}
-            </span>
+            <span className="text-[0.84rem] text-[rgba(232,236,255,0.9)]">{t('login.password')}</span>
             <input
               type="password"
               placeholder="••••••••"
@@ -97,4 +89,4 @@ function Login() {
   )
 }
 
-export default Login
+export default LoginPage

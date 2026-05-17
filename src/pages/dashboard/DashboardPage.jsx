@@ -10,37 +10,10 @@ import {
   Wrench,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import StatCard from './components/StatCard.jsx'
+import UnitCard from './components/UnitCard.jsx'
 
-
-const unitToneStyles = {
-  available: 'bg-[#dff2e9] text-[#0f766e]',
-  occupied: 'bg-[#e4e7ec] text-[#475467]',
-  cleaning: 'bg-[#f6e7d2] text-[#b45309]',
-  maintenance: 'bg-[#f7dce2] text-[#be123c]',
-  'needs-cleaning': 'bg-[#f6efcb] text-[#ca8a04]',
-}
-
-function StatCard({ item }) {
-  const Icon = item.icon
-  return (
-    <article className="rounded-3xl border border-[#d8dee8] bg-[#f7f8fb] px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.02)]">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="m-0 text-sm font-semibold text-[#374151]">{item.title}</p>
-          <p className="mt-1 text-xs text-[#9aa3b2]">{item.subtitle || '\u00a0'}</p>
-        </div>
-        <span
-          className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${item.iconBg} ${item.accent}`}
-        >
-          <Icon size={18} strokeWidth={2} />
-        </span>
-      </div>
-      <p className="mt-1 text-3xl font-bold leading-none text-[#111827]">{item.value}</p>
-    </article>
-  )
-}
-
-function DashboardHome() {
+function DashboardPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language === 'ar'
   const dir = isArabic ? 'rtl' : 'ltr'
@@ -216,13 +189,7 @@ function DashboardHome() {
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {unitCards.map((card, index) => (
-              <article
-                key={`${card.label}-${index}`}
-                className={`rounded-2xl p-4 text-center ${unitToneStyles[card.tone]}`}
-              >
-                <p className="m-0 text-3xl font-bold leading-none">{card.value}</p>
-                <p className="mt-2 text-sm font-medium">{card.label}</p>
-              </article>
+              <UnitCard key={`${card.label}-${index}`} card={card} />
             ))}
           </div>
 
@@ -240,4 +207,4 @@ function DashboardHome() {
   )
 }
 
-export default DashboardHome
+export default DashboardPage

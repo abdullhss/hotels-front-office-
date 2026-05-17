@@ -3,10 +3,10 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Toaster } from 'sonner'
 import AppLayout from './components/AppLayout.jsx'
-import DashboardHome from './components/DashboardHome.jsx'
-import BookingsPage from './components/BookingsPage.jsx'
-import NewBookingPage from './components/NewBookingPage.jsx'
-import Login from './components/Login.jsx'
+import DashboardPage from './pages/dashboard/DashboardPage.jsx'
+import BookingsPage from './pages/bookings/BookingsPage.jsx'
+import NewBookingPage from './pages/new-booking/NewBookingPage.jsx'
+import LoginPage from './pages/login/LoginPage.jsx'
 
 function App() {
   const { i18n } = useTranslation()
@@ -20,16 +20,16 @@ function App() {
   return (
     <>
       <Routes>
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={<LoginPage />} />
         <Route element={<AppLayout />}>
-          <Route path="/" element={<DashboardHome />} />
+          <Route path="/" element={<DashboardPage />} />
           <Route path="/bookings" element={<BookingsPage />} />
           <Route path="/bookings/new" element={<NewBookingPage />} />
-          <Route path="/allocation" element={<DashboardHome />} />
-          <Route path="/units" element={<DashboardHome />} />
-          <Route path="/unit-transfer" element={<DashboardHome />} />
-          <Route path="/check-out" element={<DashboardHome />} />
-          <Route path="/customers" element={<DashboardHome />} />
+          <Route path="/allocation" element={<DashboardPage />} />
+          <Route path="/units" element={<DashboardPage />} />
+          <Route path="/unit-transfer" element={<DashboardPage />} />
+          <Route path="/check-out" element={<DashboardPage />} />
+          <Route path="/customers" element={<DashboardPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

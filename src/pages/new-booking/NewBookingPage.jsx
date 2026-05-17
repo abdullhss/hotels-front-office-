@@ -2,16 +2,12 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  BedDouble,
   Briefcase,
   Building2,
   Calendar,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  CreditCard,
   Flag,
   Hash,
   IdCard,
@@ -29,250 +25,23 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from './ui/accordion.jsx'
-import NewBookingStayStep from './NewBookingStayStep.jsx'
-import NewBookingPaymentStep from './NewBookingPaymentStep.jsx'
-import { cn } from '../lib/utils'
+} from '../../components/ui/accordion.jsx'
+import NewBookingStayStep from './components/NewBookingStayStep.jsx'
+import NewBookingPaymentStep from './components/NewBookingPaymentStep.jsx'
+import BookingStepper from './components/BookingStepper.jsx'
+import NewBookingStepFooter from './components/NewBookingStepFooter.jsx'
+import {
+  AccordionChevron,
+  FieldLabel,
+  FormRow,
+  IconInput,
+  IconSelect,
+  SectionHeader,
+} from './components/BookingFormFields.jsx'
+import { EMPTY_FORM, EXISTING_CLIENTS, clientToForm } from './bookingData.js'
+import { inputClass, panelClass } from './bookingStyles.js'
+import { cn } from '../../lib/utils'
 
-const STEP_ORDER = ['individuals', 'booking', 'payment']
-
-const EMPTY_FORM = {
-  bookingNumber: '',
-  bookingDate: '',
-  fullName: '',
-  idType: '',
-  idNumber: '',
-  birthDate: '',
-  whatsappPhone: '',
-  localPhone: '',
-  gender: '',
-  nationality: '',
-  profession: '',
-  visitPurpose: '',
-  clientNotes: '',
-  bookingSource: '',
-  notes: '',
-}
-
-const EXISTING_CLIENTS = [
-  {
-    id: '1',
-    labelAr: 'سعيد محمد علي — 925666666',
-    labelEn: 'Saeed Mohammed Ali — 925666666',
-    bookingNumber: '74',
-    bookingDate: '06 / 04 / 2026',
-    fullNameAr: 'سعيد محمد علي',
-    fullNameEn: 'Saeed Mohammed Ali',
-    idType: 'national_id',
-    idNumber: '1987654321',
-    birthDate: '15 / 03 / 1988',
-    whatsappPhone: '925666666',
-    localPhone: '0212345678',
-    gender: 'male',
-    nationality: 'ly',
-    professionAr: 'مهندس',
-    professionEn: 'Engineer',
-    visitPurpose: 'tourism',
-    clientNotes: 'عميل دائم',
-    bookingSource: 'direct',
-    notes: '',
-  },
-  {
-    id: '2',
-    labelAr: 'فاطمة أحمد حسن — 918887776',
-    labelEn: 'Fatima Ahmed Hassan — 918887776',
-    bookingNumber: '82',
-    bookingDate: '10 / 05 / 2026',
-    fullNameAr: 'فاطمة أحمد حسن',
-    fullNameEn: 'Fatima Ahmed Hassan',
-    idType: 'passport',
-    idNumber: 'P88442211',
-    birthDate: '22 / 08 / 1992',
-    whatsappPhone: '918887776',
-    localPhone: '0223456789',
-    gender: 'female',
-    nationality: 'eg',
-    professionAr: 'طبيبة',
-    professionEn: 'Doctor',
-    visitPurpose: 'business',
-    clientNotes: '',
-    bookingSource: 'direct',
-    notes: 'يفضل غرفة هادئة',
-  },
-  {
-    id: '3',
-    labelAr: 'خالد عمر السعدي — 935551122',
-    labelEn: 'Khaled Omar Alsaadi — 935551122',
-    bookingNumber: '91',
-    bookingDate: '01 / 06 / 2026',
-    fullNameAr: 'خالد عمر السعدي',
-    fullNameEn: 'Khaled Omar Alsaadi',
-    idType: 'national_id',
-    idNumber: '2998877665',
-    birthDate: '05 / 11 / 1985',
-    whatsappPhone: '935551122',
-    localPhone: '0234567890',
-    gender: 'male',
-    nationality: 'sa',
-    professionAr: 'تاجر',
-    professionEn: 'Merchant',
-    visitPurpose: 'tourism',
-    clientNotes: 'حساسية من المكسرات',
-    bookingSource: 'agent',
-    notes: '',
-  },
-]
-
-function clientToForm(client, isArabic) {
-  if (!client) return { ...EMPTY_FORM }
-  return {
-    bookingNumber: client.bookingNumber,
-    bookingDate: client.bookingDate,
-    fullName: isArabic ? client.fullNameAr : client.fullNameEn,
-    idType: client.idType,
-    idNumber: client.idNumber,
-    birthDate: client.birthDate,
-    whatsappPhone: client.whatsappPhone,
-    localPhone: client.localPhone,
-    gender: client.gender,
-    nationality: client.nationality,
-    profession: isArabic ? client.professionAr : client.professionEn,
-    visitPurpose: client.visitPurpose,
-    clientNotes: client.clientNotes,
-    bookingSource: client.bookingSource,
-    notes: client.notes,
-  }
-}
-
-const panelClass =
-  'rounded-2xl border border-[#e2e8f0] bg-white p-4 shadow-sm sm:p-5'
-
-const inputClass =
-  'w-full rounded-xl border border-[#e2e8f0] bg-[#f8fafc] py-3 ps-3 pe-10 text-sm text-[#374151] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-primary'
-
-const selectClass =
-  'w-full appearance-none rounded-xl border border-[#e2e8f0] bg-[#f8fafc] py-3 ps-3 pe-10 text-sm text-[#374151] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-primary'
-
-function FieldLabel({ children, required }) {
-  return (
-    <label className="mb-1.5 block text-sm font-medium text-[#374151]">
-      {children}
-      {required && <span className="text-[#dc2626]"> *</span>}
-    </label>
-  )
-}
-
-function IconInput({ icon: Icon, className, ...props }) {
-  return (
-    <div className={cn('relative', className)}>
-      <input className={inputClass} {...props} />
-      <Icon className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
-    </div>
-  )
-}
-
-function IconSelect({ icon: Icon, children, className, ...props }) {
-  return (
-    <div className={cn('relative', className)}>
-      <select className={selectClass} {...props}>
-        {children}
-      </select>
-      {Icon ? (
-        <Icon className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
-      ) : (
-        <ChevronDown className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
-      )}
-    </div>
-  )
-}
-
-function SectionHeader({ icon: Icon, iconBg, iconColor, title, className }) {
-  return (
-    <div className={cn('mb-4 flex items-center gap-2', className)}>
-      <span
-        className={cn(
-          'inline-flex h-8 w-8 items-center justify-center rounded-lg',
-          iconBg,
-          iconColor
-        )}
-      >
-        <Icon className="h-4 w-4" />
-      </span>
-      <h2 className="m-0 text-base font-semibold text-[#111827]">{title}</h2>
-    </div>
-  )
-}
-
-function AccordionChevron() {
-  return (
-    <ChevronDown
-      className="h-5 w-5 shrink-0 text-[#6b7280] transition-transform duration-200 group-data-[state=open]:rotate-180"
-      aria-hidden
-    />
-  )
-}
-
-const formRowClass =
-  'rounded-xl border border-[#e8ecf2] bg-linear-to-b from-[#fafbfd] to-white p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]'
-
-function BookingStepper({ currentStep, t }) {
-  const steps = [
-    { key: 'individuals', label: t('newBooking.steps.individuals'), icon: Users },
-    { key: 'booking', label: t('newBooking.steps.booking'), icon: BedDouble },
-    { key: 'payment', label: t('newBooking.steps.payment'), icon: CreditCard },
-  ]
-  const currentIdx = STEP_ORDER.indexOf(currentStep)
-
-  return (
-    <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
-      {steps.map((step, idx) => {
-        const Icon = step.icon
-        const isCompleted = idx < currentIdx
-        const isActive = step.key === currentStep
-        return (
-          <div
-            key={step.key}
-            className={cn(
-              'flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-all sm:px-4',
-              isCompleted && 'bg-[#059669] text-white shadow-sm',
-              isActive && !isCompleted && 'bg-brand-primary text-white shadow-md',
-              !isCompleted && !isActive && 'text-[#9ca3af]'
-            )}
-          >
-            {isCompleted ? (
-              <CheckCircle2 className="h-4 w-4 shrink-0" />
-            ) : (
-              <Icon className="h-4 w-4 shrink-0" />
-            )}
-            <span>{step.label}</span>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function FormRow({ icon: Icon, title, hint, children, accent = 'bg-[#eef2ff] text-brand-primary' }) {
-  return (
-    <div className={formRowClass}>
-      <div className="mb-3 flex items-start gap-3">
-        <span
-          className={cn(
-            'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
-            accent
-          )}
-        >
-          <Icon className="h-4 w-4" strokeWidth={2} />
-        </span>
-        <div className="min-w-0 flex-1 pt-0.5">
-          <p className="m-0 text-sm font-semibold text-[#111827]">{title}</p>
-          {hint ? <p className="mt-0.5 text-xs leading-relaxed text-[#9ca3af]">{hint}</p> : null}
-        </div>
-      </div>
-      {children}
-    </div>
-  )
-}
 
 function NewBookingPage() {
   const { t, i18n } = useTranslation()
@@ -703,63 +472,7 @@ function NewBookingPage() {
 
       {currentStep === 'payment' && <NewBookingPaymentStep />}
 
-      {currentStep === 'payment' ? (
-        <div className={cn(panelClass, 'flex flex-col gap-3 sm:flex-row sm:flex-wrap')}>
-          <button
-            type="button"
-            className="inline-flex flex-1 items-center justify-center rounded-xl bg-brand-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-primary-hover sm:min-w-[140px]"
-          >
-            {t('newBooking.payment.confirmBooking')}
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/allocation')}
-            className="inline-flex flex-1 items-center justify-center rounded-xl bg-[#0d9488] px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-[#0f766e] sm:min-w-[140px]"
-          >
-            {t('newBooking.payment.goToAllocation')}
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/bookings')}
-            className="inline-flex flex-1 items-center justify-center rounded-xl border border-[#fecaca] bg-white px-6 py-3 text-sm font-medium text-[#dc2626] transition-colors hover:bg-[#fef2f2] sm:min-w-[140px]"
-          >
-            {t('newBooking.payment.cancel')}
-          </button>
-        </div>
-      ) : (
-        <div
-          className={cn(
-            panelClass,
-            'flex flex-col-reverse items-stretch justify-between gap-3 sm:flex-row sm:items-center'
-          )}
-        >
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/bookings')}
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#fecaca] bg-white px-6 py-3 text-sm font-medium text-[#dc2626] transition-colors hover:bg-[#fef2f2] sm:flex-none"
-            >
-              {t('newBooking.cancel')}
-            </button>
-            <button
-              type="button"
-              onClick={handleNext}
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-primary-hover sm:flex-none"
-            >
-              {t('newBooking.next')}
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-          </div>
-          <button
-            type="button"
-            onClick={handleBack}
-            className="inline-flex items-center justify-center gap-2 self-end rounded-xl border border-[#e2e8f0] bg-white px-4 py-2 text-sm font-medium text-[#6b7280] transition-colors hover:bg-[#f8fafc] sm:self-auto"
-          >
-            <ChevronRight className="h-4 w-4" />
-            {t('newBooking.back')}
-          </button>
-        </div>
-      )}
+      <NewBookingStepFooter currentStep={currentStep} onNext={handleNext} onBack={handleBack} />
     </section>
   )
 }

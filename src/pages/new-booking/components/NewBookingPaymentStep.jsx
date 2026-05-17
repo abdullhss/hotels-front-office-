@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Wallet } from 'lucide-react'
-import { cn } from '../lib/utils'
+import { cn } from '../../../lib/utils'
 
 const panelClass =
   'rounded-2xl border border-[#e2e8f0] bg-white p-4 shadow-sm sm:p-6'
