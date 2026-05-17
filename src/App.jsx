@@ -5,6 +5,7 @@ import { Toaster } from 'sonner'
 import AppLayout from './components/AppLayout.jsx'
 import DashboardHome from './components/DashboardHome.jsx'
 import BookingsPage from './components/BookingsPage.jsx'
+import NewBookingPage from './components/NewBookingPage.jsx'
 import Login from './components/Login.jsx'
 
 function App() {
@@ -23,6 +24,7 @@ function App() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<DashboardHome />} />
           <Route path="/bookings" element={<BookingsPage />} />
+          <Route path="/bookings/new" element={<NewBookingPage />} />
           <Route path="/allocation" element={<DashboardHome />} />
           <Route path="/units" element={<DashboardHome />} />
           <Route path="/unit-transfer" element={<DashboardHome />} />

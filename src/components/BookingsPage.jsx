@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   Calendar,
@@ -46,6 +47,7 @@ const panelClass =
 
 function BookingsPage() {
   const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
   const isArabic = i18n.language === 'ar'
   const [activeStat, setActiveStat] = useState('confirmed')
   const [searchQuery, setSearchQuery] = useState('')
@@ -226,6 +228,7 @@ function BookingsPage() {
         </div>
         <button
           type="button"
+          onClick={() => navigate('/bookings/new')}
           className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-primary px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-primary-hover sm:w-auto"
         >
           <Plus className="h-4 w-4" />
