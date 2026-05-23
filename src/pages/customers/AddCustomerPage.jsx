@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -6,17 +6,15 @@ import {
   Briefcase,
   Building2,
   Calendar,
-  CalendarDays,
   CheckCircle2,
-  ChevronDown,
+  ChevronLeft,
   Flag,
-  Hash,
   IdCard,
   ImagePlus,
   Phone,
-  Search,
   Settings2,
   User,
+  UserPlus,
   UserSearch,
   Users,
   X,
@@ -27,10 +25,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '../../components/ui/accordion.jsx'
-import NewBookingStayStep from './components/NewBookingStayStep.jsx'
-import NewBookingPaymentStep from './components/NewBookingPaymentStep.jsx'
-import BookingStepper from './components/BookingStepper.jsx'
-import NewBookingStepFooter from './components/NewBookingStepFooter.jsx'
 import {
   AccordionChevron,
   FieldLabel,
@@ -38,64 +32,69 @@ import {
   IconInput,
   IconSelect,
   SectionHeader,
-} from './components/BookingFormFields.jsx'
+} from '../new-booking/components/BookingFormFields.jsx'
+import { inputClass, panelClass } from '../new-booking/bookingStyles.js'
+import { cn } from '../../lib/utils.js'
 import useAgentsSimple, { getAgentDetails } from '../../Hooks/GetAgents.js'
-import useCustomersSimple, { getCustomerDetails } from '../../Hooks/GetCustomers.js'
 import useNationalities from '../../Hooks/GetNationalities.js'
+import useCustomersSimple, {
+  getCustomerDetails,
+  saveCustomerFromForm,
+} from '../../Hooks/GetCustomers.js'
 import {
-  agentRowToBookingForm,
-  customerRowToBookingForm,
-  EMPTY_FORM,
-} from './bookingData.js'
-import { inputClass, panelClass } from './bookingStyles.js'
-import { cn } from '../../lib/utils'
+  agentToForm,
+  customerToForm,
+  EMPTY_CUSTOMER_FORM,
+} from './customerFormData.js'
 
-
-function NewBookingPage() {
+function AddCustomerPage() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const isArabic = i18n.language === 'ar'
+  const { nationalities, loading: nationalitiesLoading } = useNationalities()
   const { customers, loading: customersLoading } = useCustomersSimple()
   const { agents, loading: agentsLoading } = useAgentsSimple()
-  const { nationalities, loading: nationalitiesLoading } = useNationalities()
+  const fileInputRef = useRef(null)
 
-  const [bookingType, setBookingType] = useState('client')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedExistingClientId, setSelectedExistingClientId] = useState('')
-  const [loadedExistingName, setLoadedExistingName] = useState('')
+  const [customerType, setCustomerType] = useState('client')
+  const [selectedExistingId, setSelectedExistingId] = useState('')
+  const [form, setForm] = useState(EMPTY_CUSTOMER_FORM)
+  const [idFile, setIdFile] = useState(null)
+  const [idFileName, setIdFileName] = useState('')
+  const [saving, setSaving] = useState(false)
   const [loadingExistingDetails, setLoadingExistingDetails] = useState(false)
-  const [form, setForm] = useState(EMPTY_FORM)
-  const [currentStep, setCurrentStep] = useState('individuals')
+  const [loadedExistingName, setLoadedExistingName] = useState('')
 
-  const isCompanies = bookingType === 'companies'
+  const isCompanies = customerType === 'companies'
   const existingOptions = (isCompanies ? agents : customers).filter((item) => item.id > 0)
-  const existingListLoading = isCompanies ? agentsLoading : customersLoading
+  const existingLoading = isCompanies ? agentsLoading : customersLoading
 
   const updateField = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleBookingTypeChange = (type) => {
-    setBookingType(type)
-    setSelectedExistingClientId('')
+  const handleIdFileChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setIdFile(file)
+    setIdFileName(file.name)
+  }
+
+  const handleCustomerTypeChange = (type) => {
+    setCustomerType(type)
+    setSelectedExistingId('')
     setLoadedExistingName('')
-    setForm({ ...EMPTY_FORM })
+    setForm({ ...EMPTY_CUSTOMER_FORM })
+    setIdFile(null)
+    setIdFileName('')
   }
 
-  const formatExistingOptionLabel = (item) => {
-    const name = isArabic ? item.nameAr : item.nameEn || item.nameAr
-    const phone = isCompanies
-      ? item.whatsapp || item.phone1 || ''
-      : item.whatsUp || item.mobile || ''
-    return phone ? `${name} — ${phone}` : name
-  }
-
-  const handleExistingClientChange = async (e) => {
+  const handleExistingChange = async (e) => {
     const id = e.target.value
-    setSelectedExistingClientId(id)
+    setSelectedExistingId(id)
     setLoadedExistingName('')
     if (!id) {
-      setForm({ ...EMPTY_FORM })
+      setForm({ ...EMPTY_CUSTOMER_FORM })
       return
     }
 
@@ -105,10 +104,10 @@ function NewBookingPage() {
         const { success, agent, error } = await getAgentDetails(id)
         if (!success || !agent) {
           toast.error(error ?? (isArabic ? 'تعذر تحميل بيانات الشركة' : 'Failed to load company'))
-          setSelectedExistingClientId('')
+          setSelectedExistingId('')
           return
         }
-        setForm(agentRowToBookingForm(agent, isArabic))
+        setForm(agentToForm(agent, isArabic))
         setLoadedExistingName(isArabic ? agent.nameAr : agent.nameEn || agent.nameAr)
         return
       }
@@ -116,86 +115,84 @@ function NewBookingPage() {
       const { success, customer, error } = await getCustomerDetails(id)
       if (!success || !customer) {
         toast.error(error ?? (isArabic ? 'تعذر تحميل بيانات العميل' : 'Failed to load customer'))
-        setSelectedExistingClientId('')
+        setSelectedExistingId('')
         return
       }
-      setForm(customerRowToBookingForm(customer, isArabic))
+      setForm(customerToForm(customer, isArabic))
       setLoadedExistingName(isArabic ? customer.nameAr : customer.nameEn || customer.nameAr)
     } finally {
       setLoadingExistingDetails(false)
     }
   }
 
-  const showBookingMeta = !selectedExistingClientId
-  const hasSelectedExisting = Boolean(selectedExistingClientId && loadedExistingName)
-
-  const clearExistingClient = () => {
-    setSelectedExistingClientId('')
+  const clearExistingSelection = () => {
+    setSelectedExistingId('')
     setLoadedExistingName('')
-    setForm({ ...EMPTY_FORM })
+    setForm({ ...EMPTY_CUSTOMER_FORM })
   }
 
-  const bookingTypeOptions = [
+  const hasSelectedExisting = Boolean(selectedExistingId && loadedExistingName)
+
+  const formatExistingOptionLabel = (item) => {
+    const name = isArabic ? item.nameAr : item.nameEn || item.nameAr
+    const phone = isCompanies
+      ? item.whatsapp || item.phone1 || ''
+      : item.whatsUp || item.mobile || ''
+    return phone ? `${name} — ${phone}` : name
+  }
+
+  const customerTypeOptions = [
     { value: 'client', label: t('newBooking.fields.client'), icon: User },
     { value: 'companies', label: t('newBooking.fields.companies'), icon: Building2 },
   ]
 
-  const pageHeader =
-    currentStep === 'booking'
-      ? { title: t('newBooking.stay.title'), subtitle: t('newBooking.stay.subtitle') }
-      : currentStep === 'payment'
-        ? { title: t('newBooking.payment.title'), subtitle: t('newBooking.payment.subtitle') }
-        : { title: t('newBooking.title'), subtitle: t('newBooking.subtitle') }
+  const handleSubmit = async () => {
+    if (!form.fullName?.trim()) {
+      toast.error(isArabic ? 'الاسم الكامل مطلوب' : 'Full name is required')
+      return
+    }
+    if (!form.idNumber?.trim()) {
+      toast.error(isArabic ? 'رقم الهوية مطلوب' : 'ID number is required')
+      return
+    }
+    if (!form.nationality) {
+      toast.error(isArabic ? 'الجنسية مطلوبة' : 'Nationality is required')
+      return
+    }
+    if (!form.gender) {
+      toast.error(isArabic ? 'الجنس مطلوب' : 'Gender is required')
+      return
+    }
 
-  const handleNext = () => {
-    if (currentStep === 'individuals') setCurrentStep('booking')
-    else if (currentStep === 'booking') setCurrentStep('payment')
-  }
-
-  const handleBack = () => {
-    if (currentStep === 'booking') setCurrentStep('individuals')
-    else if (currentStep === 'payment') setCurrentStep('booking')
-    else navigate('/bookings')
+    setSaving(true)
+    try {
+      const result = await saveCustomerFromForm(form, { idFile, wantedAction: 0 })
+      if (!result.success) {
+        toast.error(result.errorMessage ?? (isArabic ? 'فشل الحفظ' : 'Save failed'))
+        return
+      }
+      toast.success(isArabic ? 'تم إضافة العميل بنجاح' : 'Customer added successfully')
+      navigate('/customers')
+    } catch (e) {
+      toast.error(e?.message ?? (isArabic ? 'فشل الحفظ' : 'Save failed'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
     <section className="mx-auto max-w-[1200px] space-y-4">
       <header className="flex items-start gap-3">
-        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#dff2e9] text-[#059669]">
-          <CalendarDays className="h-5 w-5" />
+        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#eef2ff] text-brand-primary">
+          <UserPlus className="h-5 w-5" />
         </span>
         <div>
-          <h1 className="m-0 text-xl font-bold text-[#111827] sm:text-2xl">{pageHeader.title}</h1>
-          <p className="mt-0.5 text-sm text-[#6b7280]">{pageHeader.subtitle}</p>
+          <h1 className="m-0 text-xl font-bold text-[#111827] sm:text-2xl">
+            {t('customers.addCustomerForm.title')}
+          </h1>
+          <p className="mt-0.5 text-sm text-[#6b7280]">{t('customers.addCustomerForm.subtitle')}</p>
         </div>
       </header>
-
-      <BookingStepper currentStep={currentStep} t={t} />
-
-      {currentStep === 'individuals' && (
-        <>
-
-      <div className={panelClass}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <button
-            type="button"
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-primary-hover sm:order-first"
-          >
-            <Search className="h-4 w-4" />
-            {t('newBooking.search')}
-          </button>
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t('newBooking.searchPlaceholder')}
-              className={inputClass}
-            />
-          </div>
-        </div>
-      </div>
 
       <div className={cn(panelClass, 'space-y-3')}>
         <FormRow
@@ -210,9 +207,9 @@ function NewBookingPage() {
           accent="bg-[#eef2ff] text-brand-primary"
         >
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {bookingTypeOptions.map((opt) => {
+            {customerTypeOptions.map((opt) => {
               const Icon = opt.icon
-              const isActive = bookingType === opt.value
+              const isActive = customerType === opt.value
               return (
                 <label
                   key={opt.value}
@@ -225,10 +222,10 @@ function NewBookingPage() {
                 >
                   <input
                     type="radio"
-                    name="bookingType"
+                    name="customerType"
                     value={opt.value}
                     checked={isActive}
-                    onChange={() => handleBookingTypeChange(opt.value)}
+                    onChange={() => handleCustomerTypeChange(opt.value)}
                     className="sr-only"
                   />
                   <Icon className="h-4 w-4 shrink-0" />
@@ -243,28 +240,32 @@ function NewBookingPage() {
           icon={UserSearch}
           title={
             isCompanies
-              ? t('newBooking.fields.existingCompany')
+              ? t('customers.addCustomerForm.existingCompany')
               : t('newBooking.fields.existingClient')
           }
-          hint={t('newBooking.hints.existingClient')}
+          hint={
+            isCompanies
+              ? t('customers.addCustomerForm.existingCompanyHint')
+              : t('newBooking.hints.existingClient')
+          }
           accent="bg-[#e0f2fe] text-[#0284c7]"
         >
           <IconSelect
-            value={selectedExistingClientId}
-            onChange={handleExistingClientChange}
-            disabled={existingListLoading || loadingExistingDetails}
+            value={selectedExistingId}
+            onChange={handleExistingChange}
+            disabled={existingLoading || loadingExistingDetails}
             className={cn(
-              selectedExistingClientId &&
+              selectedExistingId &&
                 '[&_select]:border-[#86efac] [&_select]:ring-2 [&_select]:ring-[#bbf7d0]'
             )}
           >
             <option value="">
-              {existingListLoading || loadingExistingDetails
+              {existingLoading || loadingExistingDetails
                 ? isArabic
                   ? 'جاري التحميل...'
                   : 'Loading…'
                 : isCompanies
-                  ? t('newBooking.placeholders.existingClient')
+                  ? t('customers.addCustomerForm.existingCompanyPlaceholder')
                   : t('newBooking.placeholders.existingClient')}
             </option>
             {existingOptions.map((item) => (
@@ -287,53 +288,19 @@ function NewBookingPage() {
               </div>
               <button
                 type="button"
-                onClick={clearExistingClient}
+                onClick={clearExistingSelection}
                 className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#16a34a] transition-colors hover:bg-[#dcfce7]"
-                aria-label={t('newBooking.clearClient')}
+                aria-label={
+                  isCompanies
+                    ? t('customers.addCustomerForm.clearCompany')
+                    : t('newBooking.clearClient')
+                }
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
           ) : null}
         </FormRow>
-
-        {showBookingMeta ? (
-          <FormRow
-            icon={Hash}
-            title={t('newBooking.sections.newBookingDetails')}
-            hint={t('newBooking.hints.newBookingDetails')}
-            accent="bg-[#fef3c7] text-[#d97706]"
-          >
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <FieldLabel required>{t('newBooking.fields.bookingNumber')}</FieldLabel>
-                <div className="relative">
-                  <input
-                    type="text"
-                    className={inputClass}
-                    value={form.bookingNumber}
-                    onChange={(e) => updateField('bookingNumber', e.target.value)}
-                    placeholder={t('newBooking.placeholders.bookingNumber')}
-                  />
-                  <Hash className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
-                </div>
-              </div>
-              <div>
-                <FieldLabel required>{t('newBooking.fields.bookingDate')}</FieldLabel>
-                <div className="relative">
-                  <input
-                    type="text"
-                    className={inputClass}
-                    value={form.bookingDate}
-                    onChange={(e) => updateField('bookingDate', e.target.value)}
-                    placeholder={t('newBooking.placeholders.bookingDate')}
-                  />
-                  <Calendar className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
-                </div>
-              </div>
-            </div>
-          </FormRow>
-        ) : null}
       </div>
 
       <div className={panelClass}>
@@ -357,13 +324,11 @@ function NewBookingPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <FieldLabel required>{t('newBooking.fields.idType')}</FieldLabel>
-              <IconSelect
-                value={form.idType}
-                onChange={(e) => updateField('idType', e.target.value)}
-              >
+              <IconSelect value={form.idType} onChange={(e) => updateField('idType', e.target.value)}>
                 <option value="">{t('newBooking.placeholders.idType')}</option>
-                <option value="national_id">{isArabic ? 'بطاقة وطنية' : 'National ID'}</option>
-                <option value="passport">{isArabic ? 'جواز سفر' : 'Passport'}</option>
+                <option value="national_id">{isArabic ? 'هوية' : 'National ID'}</option>
+                <option value="residency">{isArabic ? 'إقامة' : 'Residency'}</option>
+                <option value="passport">{isArabic ? 'جواز' : 'Passport'}</option>
               </IconSelect>
             </div>
             <div>
@@ -378,12 +343,22 @@ function NewBookingPage() {
             </div>
             <div>
               <FieldLabel required>{t('newBooking.fields.idPhoto')}</FieldLabel>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={handleIdFileChange}
+              />
               <button
                 type="button"
+                onClick={() => fileInputRef.current?.click()}
                 className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#e2e8f0] bg-[#f8fafc] py-6 text-[#9ca3af] transition-colors hover:border-brand-primary/40 hover:bg-[#eef2ff]"
               >
                 <ImagePlus className="h-6 w-6" />
-                <span className="text-xs">{t('newBooking.fields.uploadId')}</span>
+                <span className="max-w-full truncate px-2 text-xs">
+                  {idFileName || t('newBooking.fields.uploadId')}
+                </span>
               </button>
             </div>
             <div>
@@ -460,7 +435,10 @@ function NewBookingPage() {
       </div>
 
       <Accordion type="multiple" defaultValue={['additional', 'extra']} className="space-y-4">
-        <AccordionItem value="additional" className={cn(panelClass, 'border-b-0')}>
+        <AccordionItem
+          value="additional"
+          className={cn(panelClass, 'border-b-0 border-[#fed7aa] bg-[#fffbeb]')}
+        >
           <AccordionTrigger className="group flex w-full items-center justify-between gap-3 py-0 hover:no-underline">
             <SectionHeader
               icon={Briefcase}
@@ -508,7 +486,10 @@ function NewBookingPage() {
           </AccordionContent>
         </AccordionItem>
 
-        <AccordionItem value="extra" className={cn(panelClass, 'border-b-0')}>
+        <AccordionItem
+          value="extra"
+          className={cn(panelClass, 'border-b-0 border-[#ddd6fe] bg-[#f5f3ff]')}
+        >
           <AccordionTrigger className="group flex w-full items-center justify-between gap-3 py-0 hover:no-underline">
             <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
               <SectionHeader
@@ -549,16 +530,35 @@ function NewBookingPage() {
           </AccordionContent>
         </AccordionItem>
       </Accordion>
-        </>
-      )}
 
-      {currentStep === 'booking' && <NewBookingStayStep />}
-
-      {currentStep === 'payment' && <NewBookingPaymentStep />}
-
-      <NewBookingStepFooter currentStep={currentStep} onNext={handleNext} onBack={handleBack} />
+      <div
+        className={cn(
+          panelClass,
+          'flex flex-col-reverse items-stretch justify-between gap-3 sm:flex-row sm:items-center'
+        )}
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => navigate('/customers')}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#fecaca] bg-white px-6 py-3 text-sm font-medium text-[#dc2626] transition-colors hover:bg-[#fef2f2] disabled:opacity-50 sm:flex-none"
+          >
+            {t('newBooking.cancel')}
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={handleSubmit}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-50 sm:flex-none"
+          >
+            {saving ? (isArabic ? 'جاري الحفظ...' : 'Saving…') : t('newBooking.next')}
+            {!saving ? <ChevronLeft className="h-4 w-4" /> : null}
+          </button>
+        </div>
+      </div>
     </section>
   )
 }
 
-export default NewBookingPage
+export default AddCustomerPage

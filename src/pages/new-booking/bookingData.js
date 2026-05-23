@@ -107,3 +107,31 @@ export function clientToForm(client, isArabic) {
     notes: client.notes,
   }
 }
+
+/** Map API customer row (GetCustomers) into booking form fields */
+export function customerRowToBookingForm(row, isArabic) {
+  if (!row) return { ...EMPTY_FORM }
+  return {
+    ...EMPTY_FORM,
+    fullName: isArabic ? row.nameAr : row.nameEn || row.nameAr,
+    idType: row.idType ?? '',
+    idNumber: row.idNumber ?? '',
+    whatsappPhone: row.whatsUp ?? '',
+    localPhone: row.mobile ?? '',
+    gender: row.genderKey ?? '',
+    nationality: row.nationalityId ? String(row.nationalityId) : '',
+  }
+}
+
+/** Map API agent row (GetAgents) into booking form fields */
+export function agentRowToBookingForm(agent, isArabic) {
+  if (!agent) return { ...EMPTY_FORM }
+  return {
+    ...EMPTY_FORM,
+    fullName: isArabic ? agent.nameAr : agent.nameEn || agent.nameAr,
+    whatsappPhone: agent.whatsapp || agent.phone1 || '',
+    localPhone: agent.phone1 ?? '',
+    nationality: agent.nationalityId ? String(agent.nationalityId) : '',
+    notes: isArabic ? agent.descAr : agent.descEn || agent.descAr,
+  }
+}

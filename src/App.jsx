@@ -9,6 +9,8 @@ import BookingsPage from './pages/bookings/BookingsPage.jsx'
 import NewBookingPage from './pages/new-booking/NewBookingPage.jsx'
 import AllocationPage from './pages/allocation/AllocationPage.jsx'
 import AllocationCheckInPage from './pages/allocation/AllocationCheckInPage.jsx'
+import CustomersPage from './pages/customers/CustomersPage.jsx'
+import AddCustomerPage from './pages/customers/AddCustomerPage.jsx'
 
 function App() {
   const { i18n } = useTranslation()
@@ -37,7 +39,8 @@ function App() {
           <Route path="/units" element={guard(<DashboardPage />)} />
           <Route path="/unit-transfer" element={guard(<DashboardPage />)} />
           <Route path="/check-out" element={guard(<DashboardPage />)} />
-          <Route path="/customers" element={guard(<DashboardPage />)} />
+          <Route path="/customers" element={guard(<CustomersPage />)} />
+          <Route path="/customers/new" element={guard(<AddCustomerPage />)} />
         </Route>
         <Route path="*" element={<Navigate to={isAuthenticated ? '/' : '/login'} replace />} />
       </Routes>
