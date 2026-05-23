@@ -262,7 +262,7 @@ export async function saveReservationFromBooking({
     totalReservationAmount: total,
     downPayment: down,
     status: '1',
-    statusRemarks: '1',
+    statusRemarks: '',
     isApproved: false,
     approvedDate: 'default',
     approvedBy: 0,
