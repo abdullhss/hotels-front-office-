@@ -3,14 +3,12 @@ import { useTranslation } from 'react-i18next'
 import { Banknote, Wallet } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { FieldLabel } from './BookingFormFields.jsx'
-import { inputClass as bookingInputClass, panelClass as bookingPanelClass } from '../bookingStyles.js'
+import { panelClass as bookingPanelClass } from '../bookingStyles.js'
 
 const panelClass = bookingPanelClass
 
 const inputClass =
   'w-full rounded-xl border border-[#e2e8f0] bg-[#f8fafc] py-3 ps-3 pe-14 text-lg font-semibold text-[#111827] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-primary'
-
-const fieldInputClass = bookingInputClass
 
 function parseAmount(value) {
   const n = Number(String(value).replace(/[^\d.]/g, ''))
@@ -28,8 +26,6 @@ function NewBookingPaymentStep({
   totalPrice: totalFromStay = 0,
   downPayment = '',
   onDownPaymentChange,
-  form,
-  onFieldChange,
 }) {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language === 'ar'
@@ -64,8 +60,6 @@ function NewBookingPaymentStep({
     }),
     [total, paid, remaining, locale]
   )
-
-  const updateField = (field, value) => onFieldChange?.(field, value)
 
   return (
     <div className="space-y-4">
@@ -122,29 +116,6 @@ function NewBookingPaymentStep({
             <p className="mt-2 text-sm text-[#dc2626]">{downPaymentError}</p>
           ) : null}
         </div>
-
-        <div className="mb-4">
-          <FieldLabel required>{t('newBooking.payment.status')}</FieldLabel>
-          <input
-            type="text"
-            className={fieldInputClass}
-            value={form?.status ?? ''}
-            onChange={(e) => updateField('status', e.target.value)}
-            placeholder={t('newBooking.payment.statusPlaceholder')}
-          />
-        </div>
-        <div>
-          <FieldLabel required>{t('newBooking.payment.statusRemarks')}</FieldLabel>
-          <textarea
-            rows={3}
-            className={cn(fieldInputClass, 'resize-none pe-3')}
-            value={form?.statusRemarks ?? ''}
-            onChange={(e) => updateField('statusRemarks', e.target.value)}
-            placeholder={t('newBooking.payment.statusRemarksPlaceholder')}
-          />
-        </div>
-
-        <hr className="my-6 border-0 border-t border-[#e8ecf2]" />
 
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-4">

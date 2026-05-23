@@ -4,8 +4,6 @@ export const EMPTY_FORM = {
   bookingNumber: '',
   bookingDate: '',
   reservationTypeId: '',
-  status: '',
-  statusRemarks: '',
   fullName: '',
   idType: '',
   idNumber: '',

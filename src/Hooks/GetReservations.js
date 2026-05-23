@@ -150,13 +150,6 @@ export function validateReservationBooking(
     )
   }
 
-  if (!String(form?.status ?? '').trim()) {
-    errors.push(m.status ?? (isArabic ? 'الحالة مطلوبة' : 'Status is required'))
-  }
-  if (!String(form?.statusRemarks ?? '').trim()) {
-    errors.push(m.statusRemarks ?? (isArabic ? 'ملاحظات الحالة مطلوبة' : 'Status remarks are required'))
-  }
-
   return { valid: errors.length === 0, errors, stay, total, down }
 }
 
@@ -268,15 +261,13 @@ export async function saveReservationFromBooking({
     roomsCount: stay.roomsCount,
     totalReservationAmount: total,
     downPayment: down,
-    status: form.status,
-    statusRemarks: form.statusRemarks,
+    status: '1',
+    statusRemarks: '1',
     isApproved: false,
     approvedDate: 'default',
     approvedBy: 0,
     wantedAction: 0,
   })
-  console.log("res", res);
-  
 
   if (!isDoTransactionSuccess(res)) {
     return {

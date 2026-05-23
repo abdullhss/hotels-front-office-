@@ -642,8 +642,6 @@ function NewBookingPage() {
           totalPrice={stayGrandTotal}
           downPayment={downPayment}
           onDownPaymentChange={setDownPayment}
-          form={form}
-          onFieldChange={updateField}
         />
       )}
 
