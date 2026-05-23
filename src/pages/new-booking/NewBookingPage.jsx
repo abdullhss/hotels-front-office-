@@ -35,13 +35,20 @@ import {
   AccordionChevron,
   FieldLabel,
   FormRow,
+  IconDateInput,
   IconInput,
   IconSelect,
   SectionHeader,
 } from './components/BookingFormFields.jsx'
+import { toInputDateValue } from './dateUtils.js'
 import useAgentsSimple, { getAgentDetails } from '../../Hooks/GetAgents.js'
 import useCustomersSimple, { getCustomerDetails } from '../../Hooks/GetCustomers.js'
 import useNationalities from '../../Hooks/GetNationalities.js'
+import useBookingTypes from '../../Hooks/GetBookingTypes.js'
+import {
+  saveReservationFromBooking,
+  validateReservationBooking,
+} from '../../Hooks/GetReservations.js'
 import {
   agentRowToBookingForm,
   customerRowToBookingForm,
@@ -58,6 +65,7 @@ function NewBookingPage() {
   const { customers, loading: customersLoading } = useCustomersSimple()
   const { agents, loading: agentsLoading } = useAgentsSimple()
   const { nationalities, loading: nationalitiesLoading } = useNationalities()
+  const { bookingTypes, loading: bookingTypesLoading } = useBookingTypes()
 
   const [bookingType, setBookingType] = useState('client')
   const [searchQuery, setSearchQuery] = useState('')
@@ -65,6 +73,10 @@ function NewBookingPage() {
   const [loadedExistingName, setLoadedExistingName] = useState('')
   const [loadingExistingDetails, setLoadingExistingDetails] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [stayGrandTotal, setStayGrandTotal] = useState(0)
+  const [stayRows, setStayRows] = useState([])
+  const [downPayment, setDownPayment] = useState('')
+  const [savingReservation, setSavingReservation] = useState(false)
   const [currentStep, setCurrentStep] = useState('individuals')
 
   const isCompanies = bookingType === 'companies'
@@ -126,7 +138,6 @@ function NewBookingPage() {
     }
   }
 
-  const showBookingMeta = !selectedExistingClientId
   const hasSelectedExisting = Boolean(selectedExistingClientId && loadedExistingName)
 
   const clearExistingClient = () => {
@@ -149,13 +160,64 @@ function NewBookingPage() {
 
   const handleNext = () => {
     if (currentStep === 'individuals') setCurrentStep('booking')
-    else if (currentStep === 'booking') setCurrentStep('payment')
+    else if (currentStep === 'booking') {
+      if (stayGrandTotal <= 0) {
+        toast.error(
+          isArabic
+            ? 'أضف وحدة واحدة على الأقل من تفاصيل الإقامة'
+            : 'Add at least one stay line before continuing'
+        )
+        return
+      }
+      setCurrentStep('payment')
+    }
   }
 
   const handleBack = () => {
     if (currentStep === 'booking') setCurrentStep('individuals')
     else if (currentStep === 'payment') setCurrentStep('booking')
     else navigate('/bookings')
+  }
+
+  const handleConfirmBooking = async () => {
+    const { valid, errors } = validateReservationBooking({
+      form,
+      bookingType,
+      selectedPartyId: selectedExistingClientId,
+      stayRows,
+      stayGrandTotal,
+      downPayment,
+      isArabic,
+    })
+
+    if (!valid) {
+      toast.error(errors[0])
+      return
+    }
+
+    setSavingReservation(true)
+    try {
+      const result = await saveReservationFromBooking({
+        form,
+        bookingType,
+        selectedPartyId: selectedExistingClientId,
+        stayRows,
+        stayGrandTotal,
+        downPayment,
+      })
+
+      if (!result.success) {
+        toast.error(result.errorMessage ?? (isArabic ? 'فشل حفظ الحجز' : 'Failed to save booking'))
+        return
+      }
+
+      toast.success(isArabic ? 'تم تأكيد الحجز بنجاح' : 'Booking confirmed successfully')
+      navigate('/bookings')
+    } catch (e) {
+      toast.error(e?.message ?? (isArabic ? 'فشل حفظ الحجز' : 'Failed to save booking'))
+    } finally {
+      setSavingReservation(false)
+    }
   }
 
   return (
@@ -297,43 +359,61 @@ function NewBookingPage() {
           ) : null}
         </FormRow>
 
-        {showBookingMeta ? (
-          <FormRow
-            icon={Hash}
-            title={t('newBooking.sections.newBookingDetails')}
-            hint={t('newBooking.hints.newBookingDetails')}
-            accent="bg-[#fef3c7] text-[#d97706]"
-          >
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <FieldLabel required>{t('newBooking.fields.bookingNumber')}</FieldLabel>
-                <div className="relative">
-                  <input
-                    type="text"
-                    className={inputClass}
-                    value={form.bookingNumber}
-                    onChange={(e) => updateField('bookingNumber', e.target.value)}
-                    placeholder={t('newBooking.placeholders.bookingNumber')}
-                  />
-                  <Hash className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
-                </div>
-              </div>
-              <div>
-                <FieldLabel required>{t('newBooking.fields.bookingDate')}</FieldLabel>
-                <div className="relative">
-                  <input
-                    type="text"
-                    className={inputClass}
-                    value={form.bookingDate}
-                    onChange={(e) => updateField('bookingDate', e.target.value)}
-                    placeholder={t('newBooking.placeholders.bookingDate')}
-                  />
-                  <Calendar className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
-                </div>
+        <FormRow
+          icon={Hash}
+          title={t('newBooking.sections.newBookingDetails')}
+          hint={t('newBooking.hints.newBookingDetails')}
+          accent="bg-[#fef3c7] text-[#d97706]"
+        >
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <FieldLabel required>{t('newBooking.fields.bookingNumber')}</FieldLabel>
+              <div className="relative">
+                <input
+                  type="text"
+                  className={inputClass}
+                  value={form.bookingNumber}
+                  onChange={(e) => updateField('bookingNumber', e.target.value)}
+                  placeholder={t('newBooking.placeholders.bookingNumber')}
+                />
+                <Hash className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
               </div>
             </div>
-          </FormRow>
-        ) : null}
+            <div>
+              <FieldLabel required>{t('newBooking.fields.bookingDate')}</FieldLabel>
+              <IconDateInput
+                value={toInputDateValue(form.bookingDate)}
+                onChange={(e) => updateField('bookingDate', e.target.value)}
+              />
+            </div>
+            <div>
+              <FieldLabel required>{t('newBooking.fields.reservationType')}</FieldLabel>
+              <IconSelect
+                value={form.reservationTypeId}
+                onChange={(e) => updateField('reservationTypeId', e.target.value)}
+                disabled={bookingTypesLoading}
+              >
+                <option value="">
+                  {bookingTypesLoading
+                    ? isArabic
+                      ? 'جاري التحميل...'
+                      : 'Loading…'
+                    : t('newBooking.placeholders.reservationType')}
+                </option>
+                {bookingTypes.map((bt) => {
+                  const typeId = bt.Id ?? bt.id
+                  return (
+                    <option key={typeId} value={String(typeId)}>
+                      {isArabic
+                        ? bt.TypeNameA ?? bt.typeNameA
+                        : bt.TypeNameE ?? bt.typeNameE}
+                    </option>
+                  )
+                })}
+              </IconSelect>
+            </div>
+          </div>
+        </FormRow>
       </div>
 
       <div className={panelClass}>
@@ -485,14 +565,13 @@ function NewBookingPage() {
               </div>
               <div>
                 <FieldLabel>{t('newBooking.fields.visitPurpose')}</FieldLabel>
-                <IconSelect
+                <IconInput
+                  icon={Briefcase}
+                  type="text"
                   value={form.visitPurpose}
                   onChange={(e) => updateField('visitPurpose', e.target.value)}
-                >
-                  <option value="">{t('newBooking.placeholders.visitPurpose')}</option>
-                  <option value="tourism">{isArabic ? 'سياحة' : 'Tourism'}</option>
-                  <option value="business">{isArabic ? 'عمل' : 'Business'}</option>
-                </IconSelect>
+                  placeholder={t('newBooking.placeholders.visitPurpose')}
+                />
               </div>
             </div>
             <div className="mt-4">
@@ -526,14 +605,13 @@ function NewBookingPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <FieldLabel>{t('newBooking.fields.bookingSource')}</FieldLabel>
-                <IconSelect
+                <IconInput
+                  icon={Settings2}
+                  type="text"
                   value={form.bookingSource}
                   onChange={(e) => updateField('bookingSource', e.target.value)}
-                >
-                  <option value="">{t('newBooking.placeholders.bookingSource')}</option>
-                  <option value="direct">{t('newBooking.fields.direct')}</option>
-                  <option value="agent">{isArabic ? 'وكيل' : 'Agent'}</option>
-                </IconSelect>
+                  placeholder={t('newBooking.placeholders.bookingSource')}
+                />
               </div>
               <div>
                 <FieldLabel>{t('newBooking.fields.notes')}</FieldLabel>
@@ -552,11 +630,30 @@ function NewBookingPage() {
         </>
       )}
 
-      {currentStep === 'booking' && <NewBookingStayStep />}
+      {currentStep === 'booking' && (
+        <NewBookingStayStep
+          onGrandTotalChange={setStayGrandTotal}
+          onStayRowsChange={setStayRows}
+        />
+      )}
 
-      {currentStep === 'payment' && <NewBookingPaymentStep />}
+      {currentStep === 'payment' && (
+        <NewBookingPaymentStep
+          totalPrice={stayGrandTotal}
+          downPayment={downPayment}
+          onDownPaymentChange={setDownPayment}
+          form={form}
+          onFieldChange={updateField}
+        />
+      )}
 
-      <NewBookingStepFooter currentStep={currentStep} onNext={handleNext} onBack={handleBack} />
+      <NewBookingStepFooter
+        currentStep={currentStep}
+        onNext={handleNext}
+        onBack={handleBack}
+        onConfirmBooking={handleConfirmBooking}
+        saving={savingReservation}
+      />
     </section>
   )
 }

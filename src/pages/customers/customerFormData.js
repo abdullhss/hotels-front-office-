@@ -11,7 +11,7 @@ export const EMPTY_CUSTOMER_FORM = {
   profession: '',
   visitPurpose: '',
   clientNotes: '',
-  bookingSource: 'direct',
+  bookingSource: '',
   notes: '',
 }
 

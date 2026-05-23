@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { panelClass } from '../bookingStyles.js'
 
-function NewBookingStepFooter({ currentStep, onNext, onBack }) {
+function NewBookingStepFooter({ currentStep, onNext, onBack, onConfirmBooking, saving = false }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
 
@@ -13,9 +13,11 @@ function NewBookingStepFooter({ currentStep, onNext, onBack }) {
       <div className={cn(panelClass, 'flex flex-col gap-3 sm:flex-row sm:flex-wrap')}>
         <button
           type="button"
-          className="inline-flex flex-1 items-center justify-center rounded-xl bg-brand-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-primary-hover sm:min-w-[140px]"
+          disabled={saving}
+          onClick={onConfirmBooking}
+          className="inline-flex flex-1 items-center justify-center rounded-xl bg-brand-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-50 sm:min-w-[140px]"
         >
-          {t('newBooking.payment.confirmBooking')}
+          {saving ? t('newBooking.payment.saving') : t('newBooking.payment.confirmBooking')}
         </button>
         <button
           type="button"

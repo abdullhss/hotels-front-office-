@@ -463,14 +463,13 @@ function AddCustomerPage() {
               </div>
               <div>
                 <FieldLabel>{t('newBooking.fields.visitPurpose')}</FieldLabel>
-                <IconSelect
+                <IconInput
+                  icon={Briefcase}
+                  type="text"
                   value={form.visitPurpose}
                   onChange={(e) => updateField('visitPurpose', e.target.value)}
-                >
-                  <option value="">{t('newBooking.placeholders.visitPurpose')}</option>
-                  <option value="tourism">{isArabic ? 'سياحة' : 'Tourism'}</option>
-                  <option value="business">{isArabic ? 'عمل' : 'Business'}</option>
-                </IconSelect>
+                  placeholder={t('newBooking.placeholders.visitPurpose')}
+                />
               </div>
             </div>
             <div className="mt-4">
@@ -507,14 +506,13 @@ function AddCustomerPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <FieldLabel>{t('newBooking.fields.bookingSource')}</FieldLabel>
-                <IconSelect
+                <IconInput
+                  icon={Settings2}
+                  type="text"
                   value={form.bookingSource}
                   onChange={(e) => updateField('bookingSource', e.target.value)}
-                >
-                  <option value="">{t('newBooking.placeholders.bookingSource')}</option>
-                  <option value="direct">{t('newBooking.fields.direct')}</option>
-                  <option value="agent">{isArabic ? 'وكيل' : 'Agent'}</option>
-                </IconSelect>
+                  placeholder={t('newBooking.placeholders.bookingSource')}
+                />
               </div>
               <div>
                 <FieldLabel>{t('newBooking.fields.notes')}</FieldLabel>

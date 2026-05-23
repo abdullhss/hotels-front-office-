@@ -1,15 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-  Building2,
-  Calendar,
-  Minus,
-  Pencil,
-  Plus,
-  Trash2,
-} from 'lucide-react'
+import { toast } from 'sonner'
+import useExtraFeatures from '../../../Hooks/GetExtraFeatures.js'
+import useUnitTitles from '../../../Hooks/GetUnitTitles.js'
+import { Building2, Minus, Plus, Trash2 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table.jsx'
 import { cn } from '../../../lib/utils'
+import { FieldLabel, IconDateInput } from './BookingFormFields.jsx'
+import { formatDisplayDate, isArrivalBeforeDeparture, toInputDateValue } from '../dateUtils.js'
 
 const panelClass =
   'rounded-2xl border border-[#e2e8f0] bg-white p-4 shadow-sm sm:p-5'
@@ -21,7 +19,7 @@ const selectClass =
   'w-full appearance-none rounded-xl border border-[#e2e8f0] bg-[#f8fafc] py-3 ps-3 pe-10 text-sm text-[#374151] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-primary'
 
 const EMPTY_LINE = {
-  unitType: 'single',
+  unitType: '',
   unitsCount: 1,
   unitPrice: '',
   arrivalDate: '',
@@ -29,47 +27,20 @@ const EMPTY_LINE = {
   adults: 1,
   children: 0,
   notes: '',
-  services: ['breakfast_only', 'pool', 'gym', 'jacuzzi'],
+  serviceId: '',
 }
 
-const INITIAL_ROWS = [
-  {
-    id: '1',
-    unitType: 'single',
-    unitsCount: 2,
-    unitPrice: '1200',
-    arrivalDate: '04 / 07 / 2026',
-    departureDate: '05 / 07 / 2026',
-    adults: 1,
-    children: 0,
-    services: ['breakfast_only', 'pool', 'gym'],
-    servicesLabelAr: 'افطار فقط، حمام سباحة، صالة رياضة',
-    servicesLabelEn: 'Breakfast only, Pool, Gym',
-    total: 2400,
-  },
-  {
-    id: '2',
-    unitType: 'suite',
-    unitsCount: 1,
-    unitPrice: '2150',
-    arrivalDate: '04 / 07 / 2026',
-    departureDate: '06 / 07 / 2026',
-    adults: 2,
-    children: 1,
-    services: ['breakfast_lunch', 'jacuzzi'],
-    servicesLabelAr: 'افطار وغداء، جاكوزي',
-    servicesLabelEn: 'Breakfast & lunch, Jacuzzi',
-    total: 2150,
-  },
-]
-
-function FieldLabel({ children, required }) {
-  return (
-    <label className="mb-1.5 block text-sm font-medium text-[#374151]">
-      {children}
-      {required && <span className="text-[#dc2626]"> *</span>}
-    </label>
-  )
+function normalizeExtraFeature(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const id = Number(raw.Id ?? raw.id ?? 0)
+  if (!id) return null
+  const priceRaw = Number(raw.FeaturePrice ?? raw.featurePrice ?? 0)
+  return {
+    id: String(id),
+    nameAr: raw.FreatureNameA ?? raw.FeatureNameA ?? raw.featureNameA ?? '',
+    nameEn: raw.FreatureNameE ?? raw.FeatureNameE ?? raw.featureNameE ?? '',
+    price: Number.isFinite(priceRaw) ? priceRaw : 0,
+  }
 }
 
 function NumStepper({ value, onChange, min = 0, max = 99 }) {
@@ -106,77 +77,109 @@ function NumStepper({ value, onChange, min = 0, max = 99 }) {
   )
 }
 
-function NewBookingStayStep() {
+function NewBookingStayStep({ onGrandTotalChange, onStayRowsChange }) {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language === 'ar'
-  const [draft, setDraft] = useState({
-    ...EMPTY_LINE,
-    unitType: 'single',
-    unitsCount: 2,
-    unitPrice: '1',
-    arrivalDate: '04 / 07 / 2026',
-    departureDate: '05 / 07 / 2026',
-    adults: 1,
-    children: 0,
-  })
-  const [rows, setRows] = useState(INITIAL_ROWS)
+  const { unitTitles, loading: unitTitlesLoading } = useUnitTitles()
+  const { extraFeatures, loading: extraFeaturesLoading } = useExtraFeatures()
+  const [draft, setDraft] = useState({ ...EMPTY_LINE })
+  const [rows, setRows] = useState([])
 
-  const serviceOptions = useMemo(
-    () => [
-      { value: 'breakfast_only', label: t('newBooking.stay.serviceOptions.breakfastOnly') },
-      { value: 'breakfast_lunch', label: t('newBooking.stay.serviceOptions.breakfastLunch') },
-      { value: 'pool', label: t('newBooking.stay.serviceOptions.pool') },
-      { value: 'gym', label: t('newBooking.stay.serviceOptions.gym') },
-      { value: 'jacuzzi', label: t('newBooking.stay.serviceOptions.jacuzzi') },
-    ],
-    [t]
+  const currency = t('newBooking.stay.currency')
+
+  const featureOptions = useMemo(
+    () =>
+      extraFeatures
+        .map((raw) => normalizeExtraFeature(raw))
+        .filter(Boolean),
+    [extraFeatures]
   )
 
-  const unitTypeLabel = (type) => {
-    if (type === 'suite') return isArabic ? 'سويت' : 'Suite'
-    if (type === 'double') return isArabic ? 'مزدوج' : 'Double'
-    return isArabic ? 'فردي' : 'Single'
-  }
-
-  const toggleService = (value) => {
-    setDraft((prev) => {
-      const has = prev.services.includes(value)
-      return {
-        ...prev,
-        services: has ? prev.services.filter((s) => s !== value) : [...prev.services, value],
-      }
+  const featureById = useMemo(() => {
+    const map = {}
+    featureOptions.forEach((f) => {
+      map[f.id] = f
     })
-  }
+    return map
+  }, [featureOptions])
+
+  const getUnitTypeLabel = useCallback(
+    (unitTypeId) => {
+      const id = String(unitTypeId ?? '')
+      if (!id) return '—'
+      const item = unitTitles.find((u) => String(u.Id ?? u.id) === id)
+      if (!item) return id
+      return isArabic
+        ? item.UnitNameA ?? item.unitNameA
+        : item.UnitNameE ?? item.unitNameE
+    },
+    [unitTitles, isArabic]
+  )
 
   const updateDraft = (field, value) => setDraft((prev) => ({ ...prev, [field]: value }))
 
-  const formatServices = (ids) =>
-    serviceOptions
-      .filter((o) => ids.includes(o.value))
-      .map((o) => o.label)
-      .join(isArabic ? '، ' : ', ')
+  const formatFeatureLine = (feature, arabic) => {
+    const name = arabic ? feature.nameAr : feature.nameEn || feature.nameAr
+    return `${name} — ${feature.price.toLocaleString()} ${currency}`
+  }
+
+  const formatServiceLabel = (serviceId, arabic) => {
+    const feature = featureById[serviceId]
+    if (!feature) return '—'
+    return formatFeatureLine(feature, arabic)
+  }
+
+  const getServicePrice = (serviceId) => featureById[serviceId]?.price ?? 0
 
   const handleAdd = () => {
+    const arrival = toInputDateValue(draft.arrivalDate)
+    const departure = toInputDateValue(draft.departureDate)
+
+    if (!arrival) {
+      toast.error(isArabic ? 'تاريخ الوصول مطلوب' : 'Arrival date is required')
+      return
+    }
+    if (!departure) {
+      toast.error(isArabic ? 'تاريخ المغادرة مطلوب' : 'Departure date is required')
+      return
+    }
+    if (!isArrivalBeforeDeparture(arrival, departure)) {
+      toast.error(
+        isArabic
+          ? 'تاريخ الوصول يجب أن يكون قبل تاريخ المغادرة'
+          : 'Arrival date must be before departure date'
+      )
+      return
+    }
+
     const price = Number(draft.unitPrice) || 0
     const count = Number(draft.unitsCount) || 1
-    const total = price * count
+    const servicesTotal = getServicePrice(draft.serviceId)
+    const total = price * count + servicesTotal
     const id = String(Date.now())
     setRows((prev) => [
       ...prev,
       {
         id,
         ...draft,
-        servicesLabelAr: formatServices(draft.services),
-        servicesLabelEn: formatServices(draft.services),
+        arrivalDate: arrival,
+        departureDate: departure,
+        servicesLabelAr: formatServiceLabel(draft.serviceId, true),
+        servicesLabelEn: formatServiceLabel(draft.serviceId, false),
         total,
       },
     ])
-    setDraft({ ...EMPTY_LINE, services: ['breakfast_only'] })
+    setDraft({ ...EMPTY_LINE })
   }
 
   const handleDelete = (id) => setRows((prev) => prev.filter((r) => r.id !== id))
 
   const grandTotal = rows.reduce((sum, r) => sum + (r.total || 0), 0)
+
+  useEffect(() => {
+    onGrandTotalChange?.(grandTotal)
+    onStayRowsChange?.(rows)
+  }, [grandTotal, rows, onGrandTotalChange, onStayRowsChange])
 
   return (
     <div className="space-y-4">
@@ -198,10 +201,27 @@ function NewBookingStayStep() {
                 className={selectClass}
                 value={draft.unitType}
                 onChange={(e) => updateDraft('unitType', e.target.value)}
+                disabled={unitTitlesLoading}
               >
-                <option value="single">{isArabic ? 'فردي' : 'Single'}</option>
-                <option value="double">{isArabic ? 'مزدوج' : 'Double'}</option>
-                <option value="suite">{isArabic ? 'سويت' : 'Suite'}</option>
+                <option value="">
+                  {unitTitlesLoading
+                    ? isArabic
+                      ? 'جاري التحميل...'
+                      : 'Loading…'
+                    : isArabic
+                      ? 'اختر نوع الوحدة'
+                      : 'Select unit type'}
+                </option>
+                {unitTitles.map((u) => {
+                  const unitId = u.Id ?? u.id
+                  return (
+                    <option key={unitId} value={String(unitId)}>
+                      {isArabic
+                        ? u.UnitNameA ?? u.unitNameA
+                        : u.UnitNameE ?? u.unitNameE}
+                    </option>
+                  )
+                })}
               </select>
             </div>
             <div>
@@ -230,33 +250,32 @@ function NewBookingStayStep() {
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <FieldLabel required>{t('newBooking.stay.arrivalDate')}</FieldLabel>
-              <div className="relative">
-                <input
-                  type="text"
-                  className={inputClass}
-                  value={draft.arrivalDate}
-                  onChange={(e) => updateDraft('arrivalDate', e.target.value)}
-                  placeholder={t('newBooking.placeholders.bookingDate')}
-                />
-                <Calendar className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
-              </div>
+              <IconDateInput
+                value={toInputDateValue(draft.arrivalDate)}
+                onChange={(e) => {
+                  const nextArrival = e.target.value
+                  updateDraft('arrivalDate', nextArrival)
+                  const dep = toInputDateValue(draft.departureDate)
+                  if (dep && nextArrival && !isArrivalBeforeDeparture(nextArrival, dep)) {
+                    updateDraft('departureDate', '')
+                  }
+                }}
+              />
             </div>
             <div>
               <FieldLabel required>{t('newBooking.stay.departureDate')}</FieldLabel>
-              <div className="relative">
-                <input
-                  type="text"
-                  className={inputClass}
-                  value={draft.departureDate}
-                  onChange={(e) => updateDraft('departureDate', e.target.value)}
-                  placeholder={t('newBooking.placeholders.bookingDate')}
-                />
-                <Calendar className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
-              </div>
+              <IconDateInput
+                value={toInputDateValue(draft.departureDate)}
+                min={toInputDateValue(draft.arrivalDate) || undefined}
+                onChange={(e) => updateDraft('departureDate', e.target.value)}
+              />
             </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <FieldLabel required>{t('newBooking.stay.adults')}</FieldLabel>
               <NumStepper value={draft.adults} onChange={(v) => updateDraft('adults', v)} min={1} />
@@ -284,22 +303,28 @@ function NewBookingStayStep() {
 
           <div>
             <FieldLabel required>{t('newBooking.stay.servicesTitle')}</FieldLabel>
-            <div className="flex flex-wrap gap-x-5 gap-y-3 rounded-xl border border-[#e8ecf2] bg-[#f8fafc] p-4">
-              {serviceOptions.map((opt) => (
-                <label
-                  key={opt.value}
-                  className="flex cursor-pointer items-center gap-2 text-sm text-[#374151]"
-                >
-                  <input
-                    type="checkbox"
-                    checked={draft.services.includes(opt.value)}
-                    onChange={() => toggleService(opt.value)}
-                    className="h-4 w-4 rounded border-[#d1d5db] accent-brand-primary"
-                  />
-                  {opt.label}
-                </label>
+            <select
+              className={selectClass}
+              value={draft.serviceId}
+              onChange={(e) => updateDraft('serviceId', e.target.value)}
+              disabled={extraFeaturesLoading}
+            >
+              <option value="">
+                {extraFeaturesLoading
+                  ? isArabic
+                    ? 'جاري التحميل...'
+                    : 'Loading…'
+                  : isArabic
+                    ? 'اختر الخدمة'
+                    : 'Select a service'}
+              </option>
+              {featureOptions.map((feature) => (
+                <option key={feature.id} value={feature.id}>
+                  {isArabic ? feature.nameAr : feature.nameEn || feature.nameAr} —{' '}
+                  {feature.price.toLocaleString()} {currency}
+                </option>
               ))}
-            </div>
+            </select>
           </div>
 
           <div className="flex justify-end pt-1">
@@ -315,98 +340,95 @@ function NewBookingStayStep() {
         </div>
       </div>
 
-      <div className={cn(panelClass, 'overflow-hidden p-0')}>
-        <div className="overflow-x-auto">
-          <Table className="min-w-[900px] border-0">
-            <TableHeader>
-              <TableRow className="bg-[#f8fafc] hover:bg-[#f8fafc]">
-                <TableHead className="text-center text-xs font-semibold text-[#374151]">#</TableHead>
-                <TableHead className="text-start text-xs font-semibold text-[#374151]">
-                  {t('newBooking.stay.unitType')}
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold text-[#374151]">
-                  {t('newBooking.stay.unitsCount')}
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold text-[#374151]">
-                  {t('newBooking.stay.unitPrice')}
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold text-[#374151]">
-                  {t('newBooking.stay.arrivalDate')}
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold text-[#374151]">
-                  {t('newBooking.stay.departureDate')}
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold text-[#374151]">
-                  {t('newBooking.stay.adults')}
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold text-[#374151]">
-                  {t('newBooking.stay.children')}
-                </TableHead>
-                <TableHead className="text-start text-xs font-semibold text-[#374151]">
-                  {t('newBooking.stay.servicesTitle')}
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold text-[#374151]">
-                  {t('newBooking.stay.totalPrice')}
-                </TableHead>
-                <TableHead className="text-center text-xs font-semibold text-[#374151]">
-                  {t('newBooking.stay.actions')}
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((row, index) => (
-                <TableRow key={row.id} className="border-b border-[#f1f5f9]">
-                  <TableCell className="text-center text-sm text-[#6b7280]">{index + 1}</TableCell>
-                  <TableCell className="text-sm font-medium text-[#111827]">
-                    {unitTypeLabel(row.unitType)}
-                  </TableCell>
-                  <TableCell className="text-center text-sm">{row.unitsCount}</TableCell>
-                  <TableCell className="text-center text-sm">
-                    {row.unitPrice} {t('newBooking.stay.currency')}
-                  </TableCell>
-                  <TableCell className="text-center text-sm text-[#6b7280]">{row.arrivalDate}</TableCell>
-                  <TableCell className="text-center text-sm text-[#6b7280]">
-                    {row.departureDate}
-                  </TableCell>
-                  <TableCell className="text-center text-sm">{row.adults}</TableCell>
-                  <TableCell className="text-center text-sm">{row.children}</TableCell>
-                  <TableCell className="max-w-[180px] truncate text-sm text-[#6b7280]">
-                    {isArabic ? row.servicesLabelAr : row.servicesLabelEn}
-                  </TableCell>
-                  <TableCell className="text-center text-sm font-semibold text-[#111827]">
-                    {row.total?.toLocaleString()} {t('newBooking.stay.currency')}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-center gap-1">
-                      <button
-                        type="button"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#16a34a] transition-colors hover:bg-[#dcfce7]"
-                        aria-label={t('newBooking.stay.edit')}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(row.id)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#dc2626] transition-colors hover:bg-[#fef2f2]"
-                        aria-label={t('newBooking.stay.delete')}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </TableCell>
+      {rows.length > 0 ? (
+        <div className={cn(panelClass, 'overflow-hidden p-0')}>
+          <div className="overflow-x-auto">
+            <Table className="min-w-[900px] border-0">
+              <TableHeader>
+                <TableRow className="bg-[#f8fafc] hover:bg-[#f8fafc]">
+                  <TableHead className="text-center text-xs font-semibold text-[#374151]">#</TableHead>
+                  <TableHead className="text-start text-xs font-semibold text-[#374151]">
+                    {t('newBooking.stay.unitType')}
+                  </TableHead>
+                  <TableHead className="text-center text-xs font-semibold text-[#374151]">
+                    {t('newBooking.stay.unitsCount')}
+                  </TableHead>
+                  <TableHead className="text-center text-xs font-semibold text-[#374151]">
+                    {t('newBooking.stay.unitPrice')}
+                  </TableHead>
+                  <TableHead className="text-center text-xs font-semibold text-[#374151]">
+                    {t('newBooking.stay.arrivalDate')}
+                  </TableHead>
+                  <TableHead className="text-center text-xs font-semibold text-[#374151]">
+                    {t('newBooking.stay.departureDate')}
+                  </TableHead>
+                  <TableHead className="text-center text-xs font-semibold text-[#374151]">
+                    {t('newBooking.stay.adults')}
+                  </TableHead>
+                  <TableHead className="text-center text-xs font-semibold text-[#374151]">
+                    {t('newBooking.stay.children')}
+                  </TableHead>
+                  <TableHead className="text-start text-xs font-semibold text-[#374151]">
+                    {t('newBooking.stay.servicesTitle')}
+                  </TableHead>
+                  <TableHead className="text-center text-xs font-semibold text-[#374151]">
+                    {t('newBooking.stay.totalPrice')}
+                  </TableHead>
+                  <TableHead className="text-center text-xs font-semibold text-[#374151]">
+                    {t('newBooking.stay.actions')}
+                  </TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {rows.map((row, index) => (
+                  <TableRow key={row.id} className="border-b border-[#f1f5f9]">
+                    <TableCell className="text-center text-sm text-[#6b7280]">{index + 1}</TableCell>
+                    <TableCell className="text-sm font-medium text-[#111827]">
+                      {getUnitTypeLabel(row.unitType)}
+                    </TableCell>
+                    <TableCell className="text-center text-sm">{row.unitsCount}</TableCell>
+                    <TableCell className="text-center text-sm">
+                      {row.unitPrice} {t('newBooking.stay.currency')}
+                    </TableCell>
+                    <TableCell className="text-center text-sm text-[#6b7280]">
+                      {formatDisplayDate(row.arrivalDate)}
+                    </TableCell>
+                    <TableCell className="text-center text-sm text-[#6b7280]">
+                      {formatDisplayDate(row.departureDate)}
+                    </TableCell>
+                    <TableCell className="text-center text-sm">{row.adults}</TableCell>
+                    <TableCell className="text-center text-sm">{row.children}</TableCell>
+                    <TableCell className="max-w-[180px] truncate text-sm text-[#6b7280]">
+                      {isArabic ? row.servicesLabelAr : row.servicesLabelEn}
+                    </TableCell>
+                    <TableCell className="text-center text-sm font-semibold text-[#111827]">
+                      {row.total?.toLocaleString()} {t('newBooking.stay.currency')}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-center">
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(row.id)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#dc2626] transition-colors hover:bg-[#fef2f2]"
+                          aria-label={t('newBooking.stay.delete')}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="flex items-center justify-between border-t border-[#e8ecf2] bg-[#f8fafc] px-4 py-3">
+            <span className="text-sm font-bold text-[#111827]">
+              {grandTotal.toLocaleString()} {t('newBooking.stay.currency')}
+            </span>
+            <span className="text-sm font-semibold text-[#374151]">{t('newBooking.stay.grandTotal')}</span>
+          </div>
         </div>
-        <div className="flex items-center justify-between border-t border-[#e8ecf2] bg-[#f8fafc] px-4 py-3">
-          <span className="text-sm font-bold text-[#111827]">
-            {grandTotal.toLocaleString()} {t('newBooking.stay.currency')}
-          </span>
-          <span className="text-sm font-semibold text-[#374151]">{t('newBooking.stay.grandTotal')}</span>
-        </div>
-      </div>
+      ) : null}
     </div>
   )
 }

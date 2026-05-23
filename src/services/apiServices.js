@@ -19,12 +19,44 @@ const API_CONFIG = {
   PUBLIC_KEY: "SL@C$@rd2023$$AlMedad$Soft$2022$", // Public key for encryption/decryption
 };
 
+function safeDecrypt(value) {
+  if (value == null || value === "") return value;
+  try {
+    const out = AES256Encryption.decrypt(value, API_CONFIG.PUBLIC_KEY);
+    if (out && typeof out === "object" && "Decryption failed:" in out) return value;
+    return out;
+  } catch {
+    return value;
+  }
+}
+
+function logProcedureCall({
+  encryptedProcedureName,
+  procedureValues,
+  decryptedRow,
+  decryptedFields,
+}) {
+  const procedureName = safeDecrypt(encryptedProcedureName);
+  console.group("[ExecuteProcedure]");
+  console.log("Procedure name (decrypted):", procedureName);
+  console.log("Procedure values:", procedureValues);
+  console.log("Decrypted response:", decryptedRow);
+  if (decryptedFields?.result != null) {
+    console.log("Decrypted result:", decryptedFields.result);
+  }
+  if (decryptedFields?.error != null) {
+    console.log("Decrypted error:", decryptedFields.error);
+  }
+  if (decryptedFields?.serverTime != null) {
+    console.log("Decrypted serverTime:", decryptedFields.serverTime);
+  }
+  console.groupEnd();
+}
+
 /**
  * Execute procedure with encrypted data
  */
 export const executeProcedure = async (ProcedureName, procedureValues) => {
-  console.log("Executing procedure:", ProcedureName);
-  console.log("Procedure values:", procedureValues);
   try {
     // Data to encrypt
     const dataToEncrypt = {
@@ -81,15 +113,31 @@ export const executeProcedure = async (ProcedureName, procedureValues) => {
       );
     }
 
-    // console.log("Decrypted response:", decryptedResponse.data.Result[0]);
+    const decryptedRow = decryptedResponse.data?.Result?.[0] ?? null;
+
+    logProcedureCall({
+      encryptedProcedureName: ProcedureName,
+      procedureValues,
+      decryptedRow,
+      decryptedFields: {
+        result: decryptedResponse.result,
+        error: decryptedResponse.error,
+        serverTime: decryptedResponse.serverTime,
+      },
+    });
 
     return {
       success: true,
-      decrypted: decryptedResponse.data.Result[0],
+      decrypted: decryptedRow,
       raw: response.data,
     };
   } catch (error) {
     console.error("API call failed:", error);
+    console.group("[ExecuteProcedure]");
+    console.log("Procedure name (decrypted):", safeDecrypt(ProcedureName));
+    console.log("Procedure values:", procedureValues);
+    console.error("Request error:", error.message);
+    console.groupEnd();
     return {
       success: false,
       error: error.message,

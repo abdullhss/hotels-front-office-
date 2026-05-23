@@ -3,6 +3,9 @@ export const STEP_ORDER = ['individuals', 'booking', 'payment']
 export const EMPTY_FORM = {
   bookingNumber: '',
   bookingDate: '',
+  reservationTypeId: '',
+  status: '',
+  statusRemarks: '',
   fullName: '',
   idType: '',
   idNumber: '',

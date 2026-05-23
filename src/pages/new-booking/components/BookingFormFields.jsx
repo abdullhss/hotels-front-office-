@@ -1,4 +1,4 @@
-import { ChevronDown } from 'lucide-react'
+import { Calendar, ChevronDown } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { formRowClass, inputClass, selectClass } from '../bookingStyles.js'
 
@@ -16,6 +16,24 @@ export function IconInput({ icon: Icon, className, ...props }) {
     <div className={cn('relative', className)}>
       <input className={inputClass} {...props} />
       <Icon className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
+    </div>
+  )
+}
+
+export function IconDateInput({ className, value, onChange, min, max, disabled, ...props }) {
+  return (
+    <div className={cn('relative', className)}>
+      <input
+        type="date"
+        className={cn(inputClass, '[color-scheme:light]')}
+        value={value ?? ''}
+        onChange={onChange}
+        min={min}
+        max={max}
+        disabled={disabled}
+        {...props}
+      />
+      <Calendar className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
     </div>
   )
 }
