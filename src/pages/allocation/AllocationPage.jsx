@@ -25,10 +25,17 @@ function AllocationPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [appliedQuery, setAppliedQuery] = useState('')
   const [arrivals, setArrivals] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
 
   const loadArrivals = useCallback(
     async (query = appliedQuery) => {
+      const q = String(query ?? '').trim()
+      if (!q) {
+        setArrivals([])
+        setLoading(false)
+        return
+      }
+
       setLoading(true)
       try {
         const result = await searchReservationsForAllocation({ searchText: query })
@@ -57,6 +64,8 @@ function AllocationPage() {
   useEffect(() => {
     loadArrivals(appliedQuery)
   }, [loadArrivals, appliedQuery])
+
+  const showReservationPrompt = !appliedQuery.trim() && !loading
 
   const hasData = !loading && arrivals.length > 0
   const bookingsCountLabel = isArabic
@@ -91,7 +100,7 @@ function AllocationPage() {
     setAppliedQuery(q)
   }
 
-  const showEmpty = !loading && arrivals.length === 0
+  const showEmpty = !loading && !showReservationPrompt && arrivals.length === 0
 
   return (
     <section className="mx-auto max-w-[1400px] space-y-4">
@@ -140,6 +149,8 @@ function AllocationPage() {
       <div className={panelClass}>
         {loading ? (
           <p className="m-0 py-8 text-center text-sm text-[#6b7280]">{t('allocation.searching')}</p>
+        ) : showReservationPrompt ? (
+          <AllocationEmptyState variant="prompt" />
         ) : showEmpty ? (
           <AllocationEmptyState />
         ) : (

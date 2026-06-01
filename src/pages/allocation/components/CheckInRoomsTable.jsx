@@ -11,9 +11,12 @@ function CheckInRoomsTable({ booking, isArabic }) {
   const roomsSummaryLabel = isArabic
     ? `${booking.totalRooms} غرف إجمالي`
     : `${booking.totalRooms} rooms total`
-  const guestsSummaryLabel = isArabic
-    ? `${booking.adults} بالغين / ${booking.children} أطفال`
-    : `${booking.adults} adults / ${booking.children} children`
+  const adultsSummaryLabel = t('allocation.checkInPage.guestsAdultsSummary', {
+    count: booking.adults,
+  })
+  const childrenSummaryLabel = t('allocation.checkInPage.guestsChildrenSummary', {
+    count: booking.children,
+  })
 
   return (
     <div className="rounded-2xl border border-[#e2e8f0] bg-white p-4 shadow-sm sm:p-5">
@@ -26,20 +29,26 @@ function CheckInRoomsTable({ booking, isArabic }) {
             {roomsSummaryLabel}
           </span>
           <span className="inline-flex rounded-lg bg-[#f1f5f9] px-3 py-1 text-xs font-medium text-[#475467]">
-            {guestsSummaryLabel}
+            {adultsSummaryLabel}
+          </span>
+          <span className="inline-flex rounded-lg bg-[#f1f5f9] px-3 py-1 text-xs font-medium text-[#475467]">
+            {childrenSummaryLabel}
           </span>
         </div>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[900px] border-collapse text-sm">
+        <table className="w-full min-w-[960px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-[#e8edf5] text-[#6b7280]">
               <th className="px-3 py-3 text-start font-medium">
                 {t('allocation.checkInPage.roomType')}
               </th>
               <th className="px-3 py-3 text-start font-medium">
-                {t('allocation.checkInPage.adultsChildren')}
+                {t('allocation.checkInPage.adults')}
+              </th>
+              <th className="px-3 py-3 text-start font-medium">
+                {t('allocation.checkInPage.children')}
               </th>
               <th className="px-3 py-3 text-start font-medium">
                 {t('allocation.checkInPage.services')}
@@ -70,13 +79,16 @@ function CheckInRoomsTable({ booking, isArabic }) {
                 <td className="px-3 py-4 font-medium text-[#111827]">
                   {isArabic ? room.typeAr : room.typeEn}
                 </td>
-                <td className="px-3 py-4 text-[#374151]" dir="ltr">
-                  {room.adults} / {room.children}
-                </td>
-                <td className="px-3 py-4">
-                  <button type="button" className="text-sm font-medium text-brand-primary">
-                    {t('allocation.checkInPage.services')}
-                  </button>
+                <td className="px-3 py-4 text-[#374151] tabular-nums">{room.adults}</td>
+                <td className="px-3 py-4 text-[#374151] tabular-nums">{room.children}</td>
+                <td className="px-3 py-4 text-[#374151]">
+                  {isArabic
+                    ? room.featureAr && room.featureAr !== '—'
+                      ? room.featureAr
+                      : t('allocation.checkInPage.services')
+                    : room.featureEn && room.featureEn !== '—'
+                      ? room.featureEn
+                      : t('allocation.checkInPage.services')}
                 </td>
                 <td className="px-3 py-4 text-[#374151]" dir="ltr">
                   {room.fromDate}
@@ -115,7 +127,7 @@ function CheckInRoomsTable({ booking, isArabic }) {
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={5} className="px-3 py-4 text-sm font-semibold text-[#111827]">
+              <td colSpan={6} className="px-3 py-4 text-sm font-semibold text-[#111827]">
                 {t('allocation.checkInPage.total')}
               </td>
               <td className="px-3 py-4 text-sm font-semibold text-[#d97706]">

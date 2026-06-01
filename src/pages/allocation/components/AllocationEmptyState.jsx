@@ -33,13 +33,21 @@ function RoadIllustration() {
   )
 }
 
-function AllocationEmptyState() {
+function AllocationEmptyState({ variant = 'empty' }) {
   const { t } = useTranslation()
+  const isPrompt = variant === 'prompt'
 
   return (
     <div className="flex flex-col items-center justify-center py-16">
       <RoadIllustration />
-      <p className="mt-4 text-base font-medium text-[#6b7280]">{t('allocation.emptyTitle')}</p>
+      <p className="mt-4 text-center text-base font-medium text-[#374151]">
+        {t(isPrompt ? 'allocation.enterReservationHint' : 'allocation.emptyTitle')}
+      </p>
+      {isPrompt ? (
+        <p className="mt-2 max-w-md text-center text-sm text-[#6b7280]">
+          {t('allocation.enterReservationHintSub')}
+        </p>
+      ) : null}
     </div>
   )
 }

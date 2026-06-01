@@ -260,6 +260,15 @@ function nightsLabel(nights, isArabic) {
     : `${n} ${n === 1 ? 'night' : 'nights'}`
 }
 
+function nightsBetweenDates(fromIso, toIso) {
+  if (!fromIso || !toIso) return 0
+  const start = new Date(`${fromIso}T00:00:00`)
+  const end = new Date(`${toIso}T00:00:00`)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0
+  const diff = Math.round((end - start) / (1000 * 60 * 60 * 24))
+  return diff > 0 ? diff : 0
+}
+
 function distributeCount(total, slots) {
   const count = Math.max(0, Number(total) || 0)
   const n = Math.max(1, slots)
@@ -356,14 +365,60 @@ export function mapReservationToCheckInBooking(row, isArabic, currencyLabel = 'Ø
     rooms = units.map((unit, idx) => {
       const unitFrom = toInputDateValue(unit.FromDate ?? unit.fromDate) || fromIso
       const unitTo = toInputDateValue(unit.ToDate ?? unit.toDate) || toIso
-      const unitNights = Number(unit.DaysCount ?? unit.daysCount) || nights
-      const price = Number(unit.Price ?? unit.price ?? unit.TotalPrice ?? perRoomPrice) || 0
+      const unitNights =
+        Number(
+          unit.TotalNightsCount ??
+            unit.totalNightsCount ??
+            unit.DaysCount ??
+            unit.daysCount
+        ) ||
+        nightsBetweenDates(unitFrom, unitTo) ||
+        nights
+      const price =
+        Number(
+          unit.TotalPrice ??
+            unit.totalPrice ??
+            unit.Price ??
+            unit.price ??
+            unit.UnitPricePerNight ??
+            unit.unitPricePerNight
+        ) || perRoomPrice
+      const personsPerUnit = Number(
+        unit.PersonsCountPerUnit ?? unit.personsCountPerUnit ?? 0
+      )
+      const unitAdults =
+        Number(unit.AdultsCount ?? unit.adultsCount ?? unit.AudultsCount) ||
+        (personsPerUnit > 0 ? personsPerUnit : 0)
+      const unitChildren = Number(unit.ChildrenCount ?? unit.childrenCount) || 0
+      const featureAr = String(
+        unit.FreatureNameA ?? unit.freatureNameA ?? unit.FeatureNameA ?? unit.featureNameA ?? ''
+      ).trim()
+      const featureEn = String(
+        unit.FreatureNameE ?? unit.freatureNameE ?? unit.FeatureNameE ?? unit.featureNameE ?? ''
+      ).trim()
+      const unitsCount = Math.max(1, Number(unit.UnitsCount ?? unit.unitsCount) || 1)
+
       return {
         id: Number(unit.Id ?? unit.id) || idx + 1,
-        typeAr: unit.UnitTypeNameA ?? unit.unitTypeNameA ?? unit.TypeNameA ?? dash,
-        typeEn: unit.UnitTypeNameE ?? unit.unitTypeNameE ?? unit.TypeNameE ?? dash,
-        adults: Number(unit.AdultsCount ?? unit.adultsCount ?? unit.AudultsCount) || 0,
-        children: Number(unit.ChildrenCount ?? unit.childrenCount) || 0,
+        typeAr:
+          unit.UnitNameA ??
+          unit.unitNameA ??
+          unit.UnitTypeNameA ??
+          unit.unitTypeNameA ??
+          unit.TypeNameA ??
+          dash,
+        typeEn:
+          unit.UnitNameE ??
+          unit.unitNameE ??
+          unit.UnitTypeNameE ??
+          unit.unitTypeNameE ??
+          unit.TypeNameE ??
+          dash,
+        adults: unitAdults,
+        children: unitChildren,
+        unitsCount,
+        featureAr: featureAr || dash,
+        featureEn: featureEn || dash,
         fromDate: unitFrom,
         toDate: unitTo,
         nights: unitNights,
@@ -398,6 +453,13 @@ export function mapReservationToCheckInBooking(row, isArabic, currencyLabel = 'Ø
     const price = Number(String(room.priceEn).replace(/[^\d.]/g, ''))
     return sum + (Number.isFinite(price) ? price : 0)
   }, 0)
+  const totalRoomsFromUnits =
+    units.length > 0
+      ? units.reduce(
+          (sum, unit) => sum + Math.max(1, Number(unit.UnitsCount ?? unit.unitsCount) || 1),
+          0
+        )
+      : roomSlots
 
   return {
     id: row.id,
@@ -430,7 +492,7 @@ export function mapReservationToCheckInBooking(row, isArabic, currencyLabel = 'Ø
     sourceEn: row.typeNameEn || dash,
     notesAr: row.statusRemarks || dash,
     notesEn: row.statusRemarks || dash,
-    totalRooms: rooms.length,
+    totalRooms: units.length > 0 ? totalRoomsFromUnits : rooms.length,
     adults: Number(row.adultsCount) || 0,
     children: Number(row.childrenCount) || 0,
     rooms,
