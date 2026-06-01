@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { User } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import CheckInGuestDataModal from './CheckInGuestDataModal.jsx'
 
 function CheckInRoomsTable({ booking, isArabic }) {
   const { t } = useTranslation()
   const [roomNumbers, setRoomNumbers] = useState(() =>
     Object.fromEntries(booking.rooms.map((room) => [room.id, '']))
   )
+  const [guestModalRoom, setGuestModalRoom] = useState(null)
+  const [roomGuests, setRoomGuests] = useState({})
 
   const roomsSummaryLabel = isArabic
     ? `${booking.totalRooms} غرف إجمالي`
@@ -116,6 +119,7 @@ function CheckInRoomsTable({ booking, isArabic }) {
                 <td className="px-3 py-4">
                   <button
                     type="button"
+                    onClick={() => setGuestModalRoom(room)}
                     className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-primary"
                   >
                     <User className="h-4 w-4" />
@@ -141,6 +145,24 @@ function CheckInRoomsTable({ booking, isArabic }) {
           </tfoot>
         </table>
       </div>
+
+      <CheckInGuestDataModal
+        open={Boolean(guestModalRoom)}
+        roomLabel={
+          guestModalRoom
+            ? isArabic
+              ? guestModalRoom.typeAr
+              : guestModalRoom.typeEn
+            : ''
+        }
+        initialGuests={guestModalRoom ? roomGuests[guestModalRoom.id] : []}
+        isArabic={isArabic}
+        onClose={() => setGuestModalRoom(null)}
+        onSave={(guests) => {
+          if (!guestModalRoom) return
+          setRoomGuests((prev) => ({ ...prev, [guestModalRoom.id]: guests }))
+        }}
+      />
     </div>
   )
 }
