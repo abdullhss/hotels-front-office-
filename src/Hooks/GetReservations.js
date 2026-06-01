@@ -1,4 +1,4 @@
-import { DoTransaction, executeProcedure } from '../services/apiServices'
+import { DoMultiTransaction, DoTransaction, executeProcedure } from '../services/apiServices'
 import { isDoTransactionSuccess } from './GetAgents.js'
 import { EMPLOYEE_HOTEL_ID } from './GetEmployees.js'
 import { saveCustomerFromForm } from './GetCustomers.js'
@@ -817,6 +817,80 @@ export const saveReservation = async ({
   )
 }
 
+function buildReservationUnitColumnsValues({
+  id = 0,
+  reservationId = 0,
+  unitNameId = 0,
+  unitAddFeatureId = 0,
+  personsCountPerUnit = 0,
+  unitsCount = 0,
+  unitPricePerNight = 0,
+  totalNightsCount = 0,
+  totalPrice = 0,
+}) {
+  return [
+    Number(id) || 0,
+    Number(reservationId) || 0,
+    Number(unitNameId) || 0,
+    Number(unitAddFeatureId) || 0,
+    Number(personsCountPerUnit) || 0,
+    Number(unitsCount) || 0,
+    Number(unitPricePerNight) || 0,
+    Number(totalNightsCount) || 0,
+    Number(totalPrice) || 0,
+  ].join('#')
+}
+
+function stayRowToUnitColumnsValues(row, reservationId) {
+  const adults = Number(row?.adults) || 0
+  const children = Number(row?.children) || 0
+  return buildReservationUnitColumnsValues({
+    reservationId,
+    unitNameId: Number(row?.unitType) || 0,
+    unitAddFeatureId: Number(row?.serviceId) || 0,
+    personsCountPerUnit: adults + children,
+    unitsCount: Number(row?.unitsCount) || 1,
+    unitPricePerNight: parseAmount(row?.unitPrice),
+    totalNightsCount: computeNightsCount(row?.arrivalDate, row?.departureDate),
+    totalPrice: Number(row?.total) || 0,
+  })
+}
+
+/** Build DoMultiTransaction payload: table^table^… and row#cols^row#cols^… */
+export function buildReservationUnitsMultiPayload(stayRows = [], reservationId) {
+  const rows = Array.isArray(stayRows) ? stayRows : []
+  const resId = Number(reservationId) || 0
+  if (!rows.length || !resId) {
+    return { multiTableName: '', multiColumnsValues: '' }
+  }
+
+  const rowValues = rows.map((row) => stayRowToUnitColumnsValues(row, resId))
+  const multiTableName = rows.map(() => RESERVATION_UNIT_TABLE_NAME).join('^') + '^'
+  const multiColumnsValues = rowValues.join('^')
+
+  return { multiTableName, multiColumnsValues }
+}
+
+export const saveReservationUnitsMulti = async ({
+  stayRows = [],
+  reservationId = 0,
+  wantedAction = 0,
+}) => {
+  const { multiTableName, multiColumnsValues } = buildReservationUnitsMultiPayload(
+    stayRows,
+    reservationId
+  )
+  if (!multiTableName || !multiColumnsValues) {
+    return {
+      success: false,
+      errorMessage: 'No reservation units to save',
+      MultiIdinties: null,
+    }
+  }
+
+  return DoMultiTransaction(multiTableName, multiColumnsValues, wantedAction)
+}
+
 export const saveReservationUnit = async ({
   id = 0,
   reservationId = 0,
@@ -829,24 +903,20 @@ export const saveReservationUnit = async ({
   totalPrice = 0,
   wantedAction = 0,
 }) => {
-  const columnsValues = [
-    Number(id) || 0,
-    Number(reservationId) || 0,
-    Number(unitNameId) || 0,
-    Number(unitAddFeatureId) || 0,
-    Number(personsCountPerUnit) || 0,
-    Number(unitsCount) || 0,
-    Number(unitPricePerNight) || 0,
-    Number(totalNightsCount) || 0,
-    Number(totalPrice) || 0,
-  ].join('#')
+  const multiTableName = `${RESERVATION_UNIT_TABLE_NAME}^`
+  const multiColumnsValues = buildReservationUnitColumnsValues({
+    id,
+    reservationId,
+    unitNameId,
+    unitAddFeatureId,
+    personsCountPerUnit,
+    unitsCount,
+    unitPricePerNight,
+    totalNightsCount,
+    totalPrice,
+  })
 
-  return DoTransaction(
-    RESERVATION_UNIT_TABLE_NAME,
-    columnsValues,
-    wantedAction,
-    RESERVATION_UNIT_COLUMNS_NAMES
-  )
+  return DoMultiTransaction(multiTableName, multiColumnsValues, wantedAction)
 }
 
 export async function saveReservationUnitsFromStayRows(stayRows = [], reservationId) {
@@ -855,34 +925,25 @@ export async function saveReservationUnitsFromStayRows(stayRows = [], reservatio
     return { success: false, errorMessage: 'Invalid reservation id for units' }
   }
   if (!Array.isArray(stayRows) || stayRows.length === 0) {
-    return { success: true, errorMessage: null }
+    return { success: true, errorMessage: null, multiIdinties: null }
   }
 
-  for (const row of stayRows) {
-    const adults = Number(row.adults) || 0
-    const children = Number(row.children) || 0
-    const unitRes = await saveReservationUnit({
-      reservationId: resId,
-      unitNameId: Number(row.unitType) || 0,
-      unitAddFeatureId: Number(row.serviceId) || 0,
-      personsCountPerUnit: adults + children,
-      unitsCount: Number(row.unitsCount) || 1,
-      unitPricePerNight: parseAmount(row.unitPrice),
-      totalNightsCount: computeNightsCount(row.arrivalDate, row.departureDate),
-      totalPrice: Number(row.total) || 0,
-      wantedAction: 0,
-    })
+  const unitRes = await saveReservationUnitsMulti({ stayRows, reservationId: resId, wantedAction: 0 })
 
-    if (!isDoTransactionSuccess(unitRes)) {
-      return {
-        success: false,
-        errorMessage:
-          unitRes?.errorMessage ?? unitRes?.error ?? 'Failed to save reservation unit',
-      }
+  if (!isDoTransactionSuccess(unitRes)) {
+    return {
+      success: false,
+      errorMessage:
+        unitRes?.errorMessage ?? unitRes?.error ?? 'Failed to save reservation units',
+      multiIdinties: unitRes?.MultiIdinties ?? null,
     }
   }
 
-  return { success: true, errorMessage: null }
+  return {
+    success: true,
+    errorMessage: null,
+    multiIdinties: unitRes?.MultiIdinties ?? null,
+  }
 }
 
 export async function saveReservationFromBooking({

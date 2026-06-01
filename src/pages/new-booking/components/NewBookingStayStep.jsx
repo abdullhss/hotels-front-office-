@@ -7,7 +7,13 @@ import { Building2, Minus, Plus, Trash2 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table.jsx'
 import { cn } from '../../../lib/utils'
 import { FieldLabel, IconDateInput } from './BookingFormFields.jsx'
-import { formatDisplayDate, isArrivalBeforeDeparture, toInputDateValue } from '../dateUtils.js'
+import {
+  computeNightsCount,
+  computeStayLineTotal,
+  formatDisplayDate,
+  isArrivalBeforeDeparture,
+  toInputDateValue,
+} from '../dateUtils.js'
 
 const panelClass =
   'rounded-2xl border border-[#e2e8f0] bg-white p-4 shadow-sm sm:p-5'
@@ -121,7 +127,29 @@ function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChang
     [unitTitles, isArabic]
   )
 
+  const getUnitPricePerNight = useCallback(
+    (unitTypeId) => {
+      const id = String(unitTypeId ?? '')
+      if (!id) return 0
+      const item = unitTitles.find((u) => String(u.Id ?? u.id) === id)
+      if (!item) return 0
+      const raw = item.UnitPricePerNight ?? item.unitPricePerNight ?? 0
+      const n = Number(raw)
+      return Number.isFinite(n) ? n : 0
+    },
+    [unitTitles]
+  )
+
   const updateDraft = (field, value) => setDraft((prev) => ({ ...prev, [field]: value }))
+
+  const handleUnitTypeChange = (unitTypeId) => {
+    const price = getUnitPricePerNight(unitTypeId)
+    setDraft((prev) => ({
+      ...prev,
+      unitType: unitTypeId,
+      unitPrice: unitTypeId && price > 0 ? String(price) : '',
+    }))
+  }
 
   const formatFeatureLine = (feature, arabic) => {
     const name = arabic ? feature.nameAr : feature.nameEn || feature.nameAr
@@ -157,18 +185,48 @@ function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChang
       return
     }
 
-    const price = Number(draft.unitPrice) || 0
+    if (!draft.unitType) {
+      toast.error(isArabic ? 'نوع الوحدة مطلوب' : 'Unit type is required')
+      return
+    }
+
+    const price = getUnitPricePerNight(draft.unitType)
+    if (!price) {
+      toast.error(
+        isArabic ? 'سعر الليلة غير متوفر لهذه الوحدة' : 'Nightly price is not available for this unit'
+      )
+      return
+    }
+
+    const nights = computeNightsCount(arrival, departure)
+    if (!nights) {
+      toast.error(
+        isArabic
+          ? 'يجب أن يكون تاريخ المغادرة بعد تاريخ الوصول بليلة واحدة على الأقل'
+          : 'Departure must be at least one night after arrival'
+      )
+      return
+    }
+
     const count = Number(draft.unitsCount) || 1
-    const servicesTotal = getServicePrice(draft.serviceId)
-    const total = price * count + servicesTotal
+    const servicePrice = getServicePrice(draft.serviceId)
+    const total = computeStayLineTotal({
+      unitPricePerNight: price,
+      servicePrice,
+      nights,
+      unitsCount: count,
+    })
     const id = String(Date.now())
     setRows((prev) => [
       ...prev,
       {
         id,
         ...draft,
+        unitPrice: price,
         arrivalDate: arrival,
         departureDate: departure,
+        nightsCount: nights,
+        servicePrice,
         servicesLabelAr: formatServiceLabel(draft.serviceId, true),
         servicesLabelEn: formatServiceLabel(draft.serviceId, false),
         total,
@@ -180,6 +238,7 @@ function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChang
   const handleDelete = (id) => setRows((prev) => prev.filter((r) => r.id !== id))
 
   const grandTotal = rows.reduce((sum, r) => sum + (r.total || 0), 0)
+  const draftNightPrice = draft.unitType ? getUnitPricePerNight(draft.unitType) : 0
 
   useEffect(() => {
     onGrandTotalChange?.(grandTotal)
@@ -205,7 +264,7 @@ function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChang
               <select
                 className={selectClass}
                 value={draft.unitType}
-                onChange={(e) => updateDraft('unitType', e.target.value)}
+                onChange={(e) => handleUnitTypeChange(e.target.value)}
                 disabled={unitTitlesLoading}
               >
                 <option value="">
@@ -238,19 +297,18 @@ function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChang
               />
             </div>
             <div>
-              <FieldLabel required>{t('newBooking.stay.unitPrice')}</FieldLabel>
-              <div className="relative">
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  className={cn(inputClass, 'pe-14')}
-                  value={draft.unitPrice}
-                  onChange={(e) => updateDraft('unitPrice', e.target.value)}
-                  placeholder="0"
-                />
-                <span className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-xs text-[#9ca3af]">
-                  {t('newBooking.stay.currency')}
+              <FieldLabel>{t('newBooking.stay.unitPrice')}</FieldLabel>
+              <div
+                className={cn(
+                  inputClass,
+                  'flex min-h-[46px] items-center justify-between bg-[#f1f5f9] pe-3 text-[#374151]'
+                )}
+                aria-live="polite"
+              >
+                <span className="text-sm font-medium">
+                  {draftNightPrice > 0 ? draftNightPrice.toLocaleString() : '—'}
                 </span>
+                <span className="text-xs text-[#9ca3af]">{currency}</span>
               </div>
             </div>
           </div>
@@ -393,7 +451,7 @@ function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChang
                     </TableCell>
                     <TableCell className="text-center text-sm">{row.unitsCount}</TableCell>
                     <TableCell className="text-center text-sm">
-                      {row.unitPrice} {t('newBooking.stay.currency')}
+                      {Number(row.unitPrice).toLocaleString()} {t('newBooking.stay.currency')}
                     </TableCell>
                     <TableCell className="text-center text-sm text-[#6b7280]">
                       {formatDisplayDate(row.arrivalDate)}

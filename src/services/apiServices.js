@@ -445,35 +445,30 @@ export const ExecuteAuthentication = async (TransToken   , VerCode    ) => {
     };
   }
 };
-export const DoMultiTransaction = async (MultiTableName, MultiColumnsValues , WantedAction=0 ,) => {
+export const DoMultiTransaction = async (MultiTableName, MultiColumnsValues, WantedAction = 0) => {
   try {
-    // Data to encrypt
     const dataToEncrypt = {
-      MultiTableName: MultiTableName,
-      MultiColumnsValues: MultiColumnsValues,
-      WantedAction:WantedAction,
+      MultiTableName,
+      MultiColumnsValues,
+      WantedAction,
       DataToken: "Hotels",
-      PointId:0
+      PointId: 0,
     };
 
     console.log("Data to encrypt:", dataToEncrypt);
 
-    // Encrypt using public key
     const encryptedData = AES256Encryption.encrypt(
       dataToEncrypt,
       API_CONFIG.PUBLIC_KEY
     );
 
-    // Request payload
     const payload = {
       ApiToken: API_CONFIG.API_TOKEN,
       Data: encryptedData,
     };
 
-    // Make API call
     const response = await api.post("/DoMultiTransaction", payload);
 
-    // Decrypt response fields
     const decryptedResponse = {};
 
     if (response.data.Result) {
@@ -481,6 +476,9 @@ export const DoMultiTransaction = async (MultiTableName, MultiColumnsValues , Wa
         response.data.Result,
         API_CONFIG.PUBLIC_KEY
       );
+    }
+
+    if (response.data.MultiIdinties) {
       decryptedResponse.MultiIdinties = AES256Encryption.decrypt(
         response.data.MultiIdinties,
         API_CONFIG.PUBLIC_KEY
@@ -508,15 +506,21 @@ export const DoMultiTransaction = async (MultiTableName, MultiColumnsValues , Wa
       );
     }
 
+    const errRaw = decryptedResponse.error
+    const errTrimmed =
+      errRaw != null && String(errRaw).trim() !== '' ? String(errRaw).trim() : null
+
     return {
-      success:  decryptedResponse.result,
-      MultiIdinties:  decryptedResponse.MultiIdinties,
+      success: decryptedResponse.result,
+      errorMessage: errTrimmed,
+      MultiIdinties: decryptedResponse.MultiIdinties,
     };
   } catch (error) {
     console.error("API call failed:", error);
     return {
       success: false,
       error: error.message,
+      errorMessage: error.message,
       details: error.response?.data,
     };
   }

@@ -39,3 +39,28 @@ export function compareIsoDates(a, b) {
 export function isArrivalBeforeDeparture(arrival, departure) {
   return compareIsoDates(arrival, departure) < 0
 }
+
+/** Nights between arrival and departure (exclusive checkout day). */
+export function computeNightsCount(arrival, departure) {
+  const from = toInputDateValue(arrival)
+  const to = toInputDateValue(departure)
+  if (!from || !to) return 0
+  const start = new Date(`${from}T00:00:00`)
+  const end = new Date(`${to}T00:00:00`)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0
+  const days = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+  return Math.max(0, days)
+}
+
+/** (nightly unit rate + feature rate) × nights × units count */
+export function computeStayLineTotal({
+  unitPricePerNight = 0,
+  servicePrice = 0,
+  nights = 0,
+  unitsCount = 1,
+}) {
+  const nightly = (Number(unitPricePerNight) || 0) + (Number(servicePrice) || 0)
+  const nightsNum = Math.max(0, Number(nights) || 0)
+  const units = Math.max(1, Number(unitsCount) || 1)
+  return nightly * nightsNum * units
+}
