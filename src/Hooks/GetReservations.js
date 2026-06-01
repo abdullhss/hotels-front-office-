@@ -20,6 +20,10 @@ const RESERVATION_TABLE_NAME = '1Xx5r4QVCRAA5fv+CZ63Fg=='
 const RESERVATION_COLUMNS_NAMES =
   'Id#Hotel_Id#ReservationNum#ReservationDate#ReservationType_Id#Agent_Id#Customer_Id#FromDate#ToDate#PersonsCount#AudultsCount#ChildrenCount#RoomsCount#TotalReservationAmount#DownPayment#Status#StatusRemarks#IsApproved#ApprovedDate#ApprovedBy'
 
+const RESERVATION_UNIT_TABLE_NAME = 'DPvCLQgCzv1ahaFcgjj8f4a69yg/NIQmIIe2PaDHtN0='
+const RESERVATION_UNIT_COLUMNS_NAMES =
+  'Id#Reservation_Id#UnitName_Id#UnitAddFeature_Id#PersonsCountPerUnit#UnitsCount#UnitPricePerNight#TotalNightsCount#TotalPricce'
+
 const boolStr = (v) => (v ? 'True' : 'False')
 
 function parseJsonList(value) {
@@ -609,6 +613,18 @@ function parseAmount(value) {
   return Number.isFinite(n) ? n : 0
 }
 
+/** Nights between arrival and departure (exclusive checkout day). */
+function computeNightsCount(arrival, departure) {
+  const from = toInputDateValue(arrival)
+  const to = toInputDateValue(departure)
+  if (!from || !to) return 0
+  const start = new Date(`${from}T00:00:00`)
+  const end = new Date(`${to}T00:00:00`)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0
+  const days = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+  return Math.max(0, days)
+}
+
 export function aggregateStayRows(rows = []) {
   if (!Array.isArray(rows) || rows.length === 0) {
     return {
@@ -801,6 +817,74 @@ export const saveReservation = async ({
   )
 }
 
+export const saveReservationUnit = async ({
+  id = 0,
+  reservationId = 0,
+  unitNameId = 0,
+  unitAddFeatureId = 0,
+  personsCountPerUnit = 0,
+  unitsCount = 0,
+  unitPricePerNight = 0,
+  totalNightsCount = 0,
+  totalPrice = 0,
+  wantedAction = 0,
+}) => {
+  const columnsValues = [
+    Number(id) || 0,
+    Number(reservationId) || 0,
+    Number(unitNameId) || 0,
+    Number(unitAddFeatureId) || 0,
+    Number(personsCountPerUnit) || 0,
+    Number(unitsCount) || 0,
+    Number(unitPricePerNight) || 0,
+    Number(totalNightsCount) || 0,
+    Number(totalPrice) || 0,
+  ].join('#')
+
+  return DoTransaction(
+    RESERVATION_UNIT_TABLE_NAME,
+    columnsValues,
+    wantedAction,
+    RESERVATION_UNIT_COLUMNS_NAMES
+  )
+}
+
+export async function saveReservationUnitsFromStayRows(stayRows = [], reservationId) {
+  const resId = Number(reservationId) || 0
+  if (!resId) {
+    return { success: false, errorMessage: 'Invalid reservation id for units' }
+  }
+  if (!Array.isArray(stayRows) || stayRows.length === 0) {
+    return { success: true, errorMessage: null }
+  }
+
+  for (const row of stayRows) {
+    const adults = Number(row.adults) || 0
+    const children = Number(row.children) || 0
+    const unitRes = await saveReservationUnit({
+      reservationId: resId,
+      unitNameId: Number(row.unitType) || 0,
+      unitAddFeatureId: Number(row.serviceId) || 0,
+      personsCountPerUnit: adults + children,
+      unitsCount: Number(row.unitsCount) || 1,
+      unitPricePerNight: parseAmount(row.unitPrice),
+      totalNightsCount: computeNightsCount(row.arrivalDate, row.departureDate),
+      totalPrice: Number(row.total) || 0,
+      wantedAction: 0,
+    })
+
+    if (!isDoTransactionSuccess(unitRes)) {
+      return {
+        success: false,
+        errorMessage:
+          unitRes?.errorMessage ?? unitRes?.error ?? 'Failed to save reservation unit',
+      }
+    }
+  }
+
+  return { success: true, errorMessage: null }
+}
+
 export async function saveReservationFromBooking({
   form,
   bookingType,
@@ -872,7 +956,30 @@ export async function saveReservationFromBooking({
     }
   }
 
-  return { success: true, errorMessage: null, newId: res?.NewId }
+  const reservationId = Number(res?.NewId) || 0
+  if (!reservationId) {
+    return {
+      success: false,
+      errorMessage: 'Reservation saved but no Id returned',
+      newId: null,
+    }
+  }
+
+  const unitsRes = await saveReservationUnitsFromStayRows(stayRows, reservationId)
+  if (!unitsRes.success) {
+    return {
+      success: false,
+      errorMessage: unitsRes.errorMessage ?? 'Failed to save reservation units',
+      newId: reservationId,
+    }
+  }
+
+  return { success: true, errorMessage: null, newId: reservationId }
 }
 
-export { RESERVATION_COLUMNS_NAMES, RESERVATION_TABLE_NAME }
+export {
+  RESERVATION_COLUMNS_NAMES,
+  RESERVATION_TABLE_NAME,
+  RESERVATION_UNIT_COLUMNS_NAMES,
+  RESERVATION_UNIT_TABLE_NAME,
+}
