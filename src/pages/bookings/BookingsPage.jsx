@@ -1,68 +1,154 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import {
-  Calendar,
-  Check,
-  Hourglass,
-  Plus,
-  Search,
-} from 'lucide-react'
+import { toast } from 'sonner'
+import { Check, Hourglass, Plus, Search } from 'lucide-react'
 import TablePage from '../../components/table/TablePage.jsx'
 import BookingStatTabs from './components/BookingStatTabs.jsx'
+import { IconDateInput } from '../new-booking/components/BookingFormFields.jsx'
+import { iconInputClass } from '../new-booking/bookingStyles.js'
+import { formatDisplayDate, toInputDateValue } from '../new-booking/dateUtils.js'
+import {
+  fetchReservationsPage,
+  filterReservationsByStat,
+  getReservationDetails,
+  mapReservationToTableRow,
+} from '../../Hooks/GetReservations.js'
+import BookingReservationPreviewModal from './components/BookingReservationPreviewModal.jsx'
 import { cn } from '../../lib/utils'
-
-const CUSTOMER_NAME = 'سعيد محمد علي'
-const CUSTOMER_NAME_EN = 'Saeed Mohammed Ali'
-const BOOKING_DATE_AR = '6 أكتوبر 2026'
-const BOOKING_DATE_EN = '6 Oct 2026'
-const CHECK_IN_AR = '6 أكتوبر 2026'
-const CHECK_IN_EN = '6 Oct 2026'
-const CHECK_OUT_AR = '8 أكتوبر 2026'
-const CHECK_OUT_EN = '8 Oct 2026'
-
-const ALL_ROWS = Array.from({ length: 60 }, (_, i) => ({
-  id: 74 - i,
-  bookingNumber: 74 - i,
-  bookingDateAr: BOOKING_DATE_AR,
-  bookingDateEn: BOOKING_DATE_EN,
-  customerNameAr: CUSTOMER_NAME,
-  customerNameEn: CUSTOMER_NAME_EN,
-  phone: '925666666',
-  unitCategoryAr: i % 2 === 0 ? 'غرفة' : 'سويت',
-  unitCategoryEn: i % 2 === 0 ? 'Room' : 'Suite',
-  checkInAr: CHECK_IN_AR,
-  checkInEn: CHECK_IN_EN,
-  checkOutAr: CHECK_OUT_AR,
-  checkOutEn: CHECK_OUT_EN,
-  durationAr: '2 ليلة',
-  durationEn: '2 nights',
-  amount: '900,00 د.ل.',
-  paymentStatus: i % 2 === 0 ? 'paid' : 'unpaid',
-  statusAr: 'نشط',
-  statusEn: 'Active',
-}))
 
 const panelClass =
   'min-w-0 max-w-full rounded-2xl border border-[#e2e8f0] bg-white p-3 shadow-sm sm:p-4'
+
+const LIST_FETCH_COUNT = 500
 
 function BookingsPage() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const isArabic = i18n.language === 'ar'
-  const [activeStat, setActiveStat] = useState('confirmed')
+  const currency = t('newBooking.stay.currency')
+
+  const [activeStat, setActiveStat] = useState('total')
   const [searchQuery, setSearchQuery] = useState('')
   const [dateFilter, setDateFilter] = useState('')
-  const [tableData, setTableData] = useState(() => ({
-    rows: ALL_ROWS.slice(0, 6),
-    total: ALL_ROWS.length,
-  }))
+  const [appliedSearch, setAppliedSearch] = useState({ search: '', date: '' })
 
-  const fetchApi = useCallback((page, rowsPerPage) => {
-    const start = (page - 1) * rowsPerPage
-    const slice = ALL_ROWS.slice(start, start + rowsPerPage)
-    setTableData({ rows: slice, total: ALL_ROWS.length })
-  }, [])
+  const [allReservations, setAllReservations] = useState([])
+  const [stats, setStats] = useState({ all: 0, done: 0, pending: 0 })
+  const [tableData, setTableData] = useState({ rows: [], total: 0 })
+  const [loading, setLoading] = useState(true)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewReservation, setPreviewReservation] = useState(null)
+
+  const openReservationPreview = useCallback(
+    async (item) => {
+      const reservationId = item?.raw?.id ?? item?.id
+      if (!reservationId) return
+
+      setPreviewOpen(true)
+      setPreviewLoading(true)
+      setPreviewReservation(null)
+
+      try {
+        const result = await getReservationDetails(reservationId)
+        if (!result.success || !result.reservation) {
+          toast.error(
+            result.error ?? (isArabic ? 'تعذر تحميل تفاصيل الحجز' : 'Failed to load reservation details')
+          )
+          setPreviewOpen(false)
+          return
+        }
+        setPreviewReservation(result.reservation)
+      } catch (err) {
+        toast.error(err?.message ?? (isArabic ? 'تعذر تحميل تفاصيل الحجز' : 'Failed to load reservation details'))
+        setPreviewOpen(false)
+      } finally {
+        setPreviewLoading(false)
+      }
+    },
+    [isArabic]
+  )
+
+  const applyTablePage = useCallback(
+    (page, rowsPerPage, reservations, statKey) => {
+      const filtered = filterReservationsByStat(reservations, statKey)
+      const uiRows = filtered
+        .map((row) => mapReservationToTableRow(row, isArabic, currency))
+        .filter(Boolean)
+      const start = (page - 1) * rowsPerPage
+      setTableData({
+        rows: uiRows.slice(start, start + rowsPerPage),
+        total: uiRows.length,
+      })
+    },
+    [isArabic, currency]
+  )
+
+  const loadReservations = useCallback(
+    async (filters = appliedSearch) => {
+      setLoading(true)
+      try {
+        const result = await fetchReservationsPage({
+          searchText: filters.search,
+          date: filters.date,
+          startNum: 1,
+          count: LIST_FETCH_COUNT,
+        })
+
+        if (!result.success) {
+          toast.error(result.error ?? (isArabic ? 'فشل تحميل الحجوزات' : 'Failed to load bookings'))
+          setAllReservations([])
+          setStats({ all: 0, done: 0, pending: 0 })
+          setTableData({ rows: [], total: 0 })
+          return
+        }
+
+        setAllReservations(result.reservations)
+        setStats({
+          all: result.stats.all,
+          done: result.stats.done,
+          pending: result.stats.pending,
+        })
+      } catch (err) {
+        toast.error(err?.message ?? (isArabic ? 'فشل تحميل الحجوزات' : 'Failed to load bookings'))
+        setAllReservations([])
+        setTableData({ rows: [], total: 0 })
+      } finally {
+        setLoading(false)
+      }
+    },
+    [appliedSearch, isArabic]
+  )
+
+  useEffect(() => {
+    loadReservations(appliedSearch)
+  }, [loadReservations, appliedSearch])
+
+  useEffect(() => {
+    if (!allReservations.length && !loading) {
+      setTableData({ rows: [], total: 0 })
+      return
+    }
+    applyTablePage(1, 6, allReservations, activeStat)
+  }, [allReservations, activeStat, applyTablePage, loading])
+
+  const fetchApi = useCallback(
+    (page, rowsPerPage) => {
+      applyTablePage(page, rowsPerPage, allReservations, activeStat)
+    },
+    [applyTablePage, allReservations, activeStat]
+  )
+
+  const handleSearch = (e) => {
+    e?.preventDefault?.()
+    const dateParam = dateFilter ? formatDisplayDate(toInputDateValue(dateFilter)) : ''
+    setAppliedSearch({ search: searchQuery.trim(), date: dateParam })
+  }
+
+  const handleStatChange = (key) => {
+    setActiveStat(key)
+  }
 
   const columns = useMemo(
     () =>
@@ -70,7 +156,7 @@ function BookingsPage() {
         ? [
             { uid: 'bookingNumber', name: 'رقم الحجز', sortKey: 'bookingNumber' },
             { uid: 'customer', name: 'العميل' },
-            { uid: 'unitCategory', name: 'فئة الوحدة' },
+            { uid: 'unitCategory', name: 'نوع الحجز' },
             { uid: 'dates', name: 'التاريخ' },
             { uid: 'duration', name: 'المدة' },
             { uid: 'amount', name: 'المبلغ' },
@@ -79,8 +165,8 @@ function BookingsPage() {
           ]
         : [
             { uid: 'bookingNumber', name: 'Booking #' },
-            { uid: 'customer', name: 'Customer' },
-            { uid: 'unitCategory', name: 'Unit type' },
+            { uid: 'customer', name: 'Guest / agent' },
+            { uid: 'unitCategory', name: 'Booking type' },
             { uid: 'dates', name: 'Dates' },
             { uid: 'duration', name: 'Duration' },
             { uid: 'amount', name: 'Amount' },
@@ -106,14 +192,9 @@ function BookingsPage() {
       {
         key: 'customer',
         render: (_, item) => (
-          <div className="flex flex-col gap-0.5">
-            <span className="font-medium text-[#111827]">
-              {isArabic ? item.customerNameAr : item.customerNameEn}
-            </span>
-            <span className="text-xs text-[#9ca3af]" dir="ltr">
-              {item.phone}
-            </span>
-          </div>
+          <span className="font-medium text-[#111827]">
+            {isArabic ? item.customerNameAr : item.customerNameEn}
+          </span>
         ),
       },
       {
@@ -170,7 +251,12 @@ function BookingsPage() {
       {
         key: 'status',
         render: (_, item) => (
-          <span className="inline-flex rounded-lg bg-[#dff2e9] px-2.5 py-1 text-xs font-medium text-[#059669]">
+          <span
+            className={cn(
+              'inline-flex rounded-lg px-2.5 py-1 text-xs font-medium',
+              item.isApproved ? 'bg-[#dff2e9] text-[#059669]' : 'bg-[#fef3c7] text-[#d97706]'
+            )}
+          >
             {isArabic ? item.statusAr : item.statusEn}
           </span>
         ),
@@ -183,14 +269,10 @@ function BookingsPage() {
     () => [
       {
         label: isArabic ? 'عرض' : 'View',
-        onClick: () => {},
-      },
-      {
-        label: isArabic ? 'تعديل' : 'Edit',
-        onClick: () => {},
+        onClick: (item) => openReservationPreview(item),
       },
     ],
-    [isArabic]
+    [isArabic, openReservationPreview]
   )
 
   const statTabs = useMemo(
@@ -198,26 +280,40 @@ function BookingsPage() {
       {
         key: 'total',
         label: t('bookings.stats.total'),
-        value: ALL_ROWS.length,
-        icon: Check,
-        activeClass: 'bg-white text-[#374151] shadow-sm',
-      },
-      {
-        key: 'confirmed',
-        label: t('bookings.stats.confirmed'),
-        value: ALL_ROWS.length,
+        value: stats.all,
         icon: Check,
         activeClass: 'bg-brand-primary text-white shadow-md',
       },
       {
+        key: 'confirmed',
+        label: t('bookings.stats.confirmed'),
+        value: stats.done,
+        icon: Check,
+        activeClass: 'bg-white text-[#374151] shadow-sm',
+      },
+      {
         key: 'pending',
         label: t('bookings.stats.pending'),
-        value: 0,
+        value: stats.pending,
         icon: Hourglass,
         activeClass: 'bg-white text-[#374151] shadow-sm',
       },
     ],
-    [t]
+    [t, stats]
+  )
+
+  const statTabsWithActiveStyle = useMemo(
+    () =>
+      statTabs.map((tab) => ({
+        ...tab,
+        activeClass:
+          activeStat === tab.key
+            ? tab.key === 'total'
+              ? 'bg-brand-primary text-white shadow-md'
+              : 'bg-brand-primary text-white shadow-md'
+            : 'bg-[#f8fafc] text-[#6b7280] hover:bg-white',
+      })),
+    [statTabs, activeStat]
   )
 
   return (
@@ -237,39 +333,46 @@ function BookingsPage() {
         </button>
       </header>
 
-      <BookingStatTabs tabs={statTabs} activeStat={activeStat} onSelect={setActiveStat} />
+      <BookingStatTabs
+        tabs={statTabsWithActiveStyle}
+        activeStat={activeStat}
+        onSelect={handleStatChange}
+      />
 
-      <div className={panelClass}>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+      <form onSubmit={handleSearch} className={panelClass}>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
           <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
+            <label className="mb-1.5 block text-sm font-medium text-[#374151]">
+              {t('bookings.searchLabel')}
+            </label>
+            <Search
+              className="pointer-events-none absolute start-3 top-[calc(50%+10px)] h-4 w-4 -translate-y-1/2 text-[#9ca3af]"
+              aria-hidden
+            />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('bookings.searchPlaceholder')}
-              className="w-full rounded-xl border border-[#e2e8f0] bg-[#f8fafc] py-3 pe-10 ps-3 text-sm text-[#374151] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-primary"
+              className={iconInputClass}
             />
           </div>
-          <div className="relative w-full lg:w-48">
-            <Calendar className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
-            <input
-              type="text"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              placeholder={t('bookings.datePlaceholder')}
-              className="w-full rounded-xl border border-[#e2e8f0] bg-[#f8fafc] py-3 pe-10 ps-3 text-sm text-[#374151] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-primary"
-            />
+          <div className="w-full lg:w-52">
+            <label className="mb-1.5 block text-sm font-medium text-[#374151]">
+              {t('bookings.dateLabel')}
+            </label>
+            <IconDateInput value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
           </div>
           <button
-            type="button"
-            className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-primary-hover lg:w-auto"
+            type="submit"
+            disabled={loading}
+            className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-50 lg:w-auto"
           >
             <Search className="h-4 w-4" />
-            {t('bookings.search')}
+            {loading ? t('bookings.searching') : t('bookings.search')}
           </button>
         </div>
-      </div>
+      </form>
 
       <div className={panelClass}>
         <h2 className="mb-4 text-base font-semibold text-[#111827]">{t('bookings.listTitle')}</h2>
@@ -280,11 +383,21 @@ function BookingsPage() {
           total={tableData.total}
           fetchApi={fetchApi}
           actionsConfig={actionsConfig}
+          onDoubleClick={openReservationPreview}
           hideSearch
           rowsPerPageDefault={6}
           isHeaderSticky
+          isLoading={loading}
         />
       </div>
+
+      <BookingReservationPreviewModal
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        reservation={previewReservation}
+        loading={previewLoading}
+        isArabic={isArabic}
+      />
     </section>
   )
 }

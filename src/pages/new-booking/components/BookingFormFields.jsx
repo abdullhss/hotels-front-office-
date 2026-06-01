@@ -1,6 +1,12 @@
 import { Calendar, ChevronDown } from 'lucide-react'
 import { cn } from '../../../lib/utils'
-import { formRowClass, inputClass, selectClass } from '../bookingStyles.js'
+import { formRowClass, iconInputClass, selectClass } from '../bookingStyles.js'
+
+const fieldIconClass =
+  'pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]'
+
+const selectIconClass =
+  'pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]'
 
 export function FieldLabel({ children, required }) {
   return (
@@ -14,8 +20,8 @@ export function FieldLabel({ children, required }) {
 export function IconInput({ icon: Icon, className, ...props }) {
   return (
     <div className={cn('relative', className)}>
-      <input className={inputClass} {...props} />
-      <Icon className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
+      <input className={iconInputClass} {...props} />
+      <Icon className={fieldIconClass} aria-hidden />
     </div>
   )
 }
@@ -25,7 +31,7 @@ export function IconDateInput({ className, value, onChange, min, max, disabled, 
     <div className={cn('relative', className)}>
       <input
         type="date"
-        className={cn(inputClass, '[color-scheme:light]')}
+        className={cn(iconInputClass, '[color-scheme:light]')}
         value={value ?? ''}
         onChange={onChange}
         min={min}
@@ -33,7 +39,7 @@ export function IconDateInput({ className, value, onChange, min, max, disabled, 
         disabled={disabled}
         {...props}
       />
-      <Calendar className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
+      <Calendar className={fieldIconClass} aria-hidden />
     </div>
   )
 }
@@ -45,9 +51,9 @@ export function IconSelect({ icon: Icon, children, className, ...props }) {
         {children}
       </select>
       {Icon ? (
-        <Icon className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
+        <Icon className={selectIconClass} aria-hidden />
       ) : (
-        <ChevronDown className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
+        <ChevronDown className={selectIconClass} aria-hidden />
       )}
     </div>
   )

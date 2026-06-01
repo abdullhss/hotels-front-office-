@@ -11,6 +11,7 @@ import {
   Flag,
   IdCard,
   ImagePlus,
+  Mail,
   Phone,
   Settings2,
   User,
@@ -311,15 +312,28 @@ function AddCustomerPage() {
           title={t('newBooking.sections.personal')}
         />
         <div className="space-y-4">
-          <div>
-            <FieldLabel required>{t('newBooking.fields.fullName')}</FieldLabel>
-            <IconInput
-              icon={User}
-              type="text"
-              value={form.fullName}
-              onChange={(e) => updateField('fullName', e.target.value)}
-              placeholder={t('newBooking.placeholders.fullName')}
-            />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <FieldLabel required>{t('newBooking.fields.fullName')}</FieldLabel>
+              <IconInput
+                icon={User}
+                type="text"
+                value={form.fullName}
+                onChange={(e) => updateField('fullName', e.target.value)}
+                placeholder={t('newBooking.placeholders.fullName')}
+              />
+            </div>
+            <div>
+              <FieldLabel>{t('newBooking.fields.email')}</FieldLabel>
+              <IconInput
+                icon={Mail}
+                type="email"
+                dir="ltr"
+                value={form.email}
+                onChange={(e) => updateField('email', e.target.value)}
+                placeholder={t('newBooking.placeholders.email')}
+              />
+            </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>

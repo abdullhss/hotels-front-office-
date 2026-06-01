@@ -53,6 +53,47 @@ function resolveIdTypeFields(raw) {
   const passport = String(raw.PassportNum ?? raw.passportNum ?? '').trim()
   const presidence = String(raw.PresidenceNum ?? raw.presidenceNum ?? '').trim()
   const idNum = String(raw.IdNum ?? raw.idNum ?? '').trim()
+  const passportAttach = String(raw.PassportNum_Attach ?? raw.passportNum_Attach ?? '').trim()
+  const idNumAttach = String(raw.IdNum_Attach ?? raw.idNum_Attach ?? '').trim()
+  const presidenceAttach = String(raw.PresidenceNum_Attach ?? raw.presidenceNum_Attach ?? '').trim()
+
+  if (presidence && presidence !== passport && presidence !== idNum) {
+    return {
+      idType: 'residency',
+      idTypeAr: 'إقامة',
+      idTypeEn: 'Residency',
+      idNumber: presidence,
+      idAttach: presidenceAttach,
+    }
+  }
+
+  if (passport && idNum && passport === idNum) {
+    if (presidenceAttach && presidence === passport) {
+      return {
+        idType: 'residency',
+        idTypeAr: 'إقامة',
+        idTypeEn: 'Residency',
+        idNumber: presidence || passport,
+        idAttach: presidenceAttach,
+      }
+    }
+    if (passportAttach && !idNumAttach) {
+      return {
+        idType: 'passport',
+        idTypeAr: 'جواز',
+        idTypeEn: 'Passport',
+        idNumber: passport,
+        idAttach: passportAttach,
+      }
+    }
+    return {
+      idType: 'national_id',
+      idTypeAr: 'هوية',
+      idTypeEn: 'National ID',
+      idNumber: idNum,
+      idAttach: idNumAttach,
+    }
+  }
 
   if (passport) {
     return {
@@ -60,7 +101,7 @@ function resolveIdTypeFields(raw) {
       idTypeAr: 'جواز',
       idTypeEn: 'Passport',
       idNumber: passport,
-      idAttach: String(raw.PassportNum_Attach ?? raw.passportNum_Attach ?? '').trim(),
+      idAttach: passportAttach,
     }
   }
   if (presidence) {
@@ -69,7 +110,7 @@ function resolveIdTypeFields(raw) {
       idTypeAr: 'إقامة',
       idTypeEn: 'Residency',
       idNumber: presidence,
-      idAttach: String(raw.PresidenceNum_Attach ?? raw.presidenceNum_Attach ?? '').trim(),
+      idAttach: presidenceAttach,
     }
   }
   return {
@@ -77,7 +118,7 @@ function resolveIdTypeFields(raw) {
     idTypeAr: 'هوية',
     idTypeEn: 'National ID',
     idNumber: idNum,
-    idAttach: String(raw.IdNum_Attach ?? raw.idNum_Attach ?? '').trim(),
+    idAttach: idNumAttach,
   }
 }
 
@@ -258,12 +299,24 @@ function buildIdColumns(idType, idNumber, idNumAttach, passportAttach, presidenc
   const type = idType || 'national_id'
   const num = String(idNumber ?? '').trim()
 
+  if (!num) {
+    return {
+      idNum: '',
+      idNumAttach: '',
+      passportNum: '',
+      passportNumAttach: '',
+      presidenceNum: '',
+      presidenceNumAttach: '',
+    }
+  }
+
+  // IdNum, PassportNum, and PresidenceNum each have unique constraints; empty strings collide.
   return {
-    idNum: type === 'national_id' ? num : '',
+    idNum: num,
+    passportNum: num,
+    presidenceNum: num,
     idNumAttach: type === 'national_id' ? idNumAttach : '',
-    passportNum: type === 'passport' ? num : '',
     passportNumAttach: type === 'passport' ? passportAttach : '',
-    presidenceNum: type === 'residency' ? num : '',
     presidenceNumAttach: type === 'residency' ? presidenceAttach : '',
   }
 }

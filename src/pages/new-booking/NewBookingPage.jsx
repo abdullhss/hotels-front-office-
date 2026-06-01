@@ -1,11 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   Briefcase,
   Building2,
-  Calendar,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
@@ -13,6 +12,7 @@ import {
   Hash,
   IdCard,
   ImagePlus,
+  Mail,
   Phone,
   Search,
   Settings2,
@@ -41,6 +41,7 @@ import {
   SectionHeader,
 } from './components/BookingFormFields.jsx'
 import { toInputDateValue } from './dateUtils.js'
+import { STEP_ORDER } from './bookingData.js'
 import useAgentsSimple, { getAgentDetails } from '../../Hooks/GetAgents.js'
 import useCustomersSimple, { getCustomerDetails } from '../../Hooks/GetCustomers.js'
 import useNationalities from '../../Hooks/GetNationalities.js'
@@ -54,7 +55,7 @@ import {
   customerRowToBookingForm,
   EMPTY_FORM,
 } from './bookingData.js'
-import { inputClass, panelClass } from './bookingStyles.js'
+import { iconInputClass, inputClass, panelClass } from './bookingStyles.js'
 import { cn } from '../../lib/utils'
 
 
@@ -66,6 +67,7 @@ function NewBookingPage() {
   const { agents, loading: agentsLoading } = useAgentsSimple()
   const { nationalities, loading: nationalitiesLoading } = useNationalities()
   const { bookingTypes, loading: bookingTypesLoading } = useBookingTypes()
+  const idFileInputRef = useRef(null)
 
   const [bookingType, setBookingType] = useState('client')
   const [searchQuery, setSearchQuery] = useState('')
@@ -73,6 +75,8 @@ function NewBookingPage() {
   const [loadedExistingName, setLoadedExistingName] = useState('')
   const [loadingExistingDetails, setLoadingExistingDetails] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [idFile, setIdFile] = useState(null)
+  const [idFileName, setIdFileName] = useState('')
   const [stayGrandTotal, setStayGrandTotal] = useState(0)
   const [stayRows, setStayRows] = useState([])
   const [downPayment, setDownPayment] = useState('')
@@ -87,11 +91,25 @@ function NewBookingPage() {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
 
+  const clearIdFile = () => {
+    setIdFile(null)
+    setIdFileName('')
+    if (idFileInputRef.current) idFileInputRef.current.value = ''
+  }
+
+  const handleIdFileChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setIdFile(file)
+    setIdFileName(file.name)
+  }
+
   const handleBookingTypeChange = (type) => {
     setBookingType(type)
     setSelectedExistingClientId('')
     setLoadedExistingName('')
     setForm({ ...EMPTY_FORM })
+    clearIdFile()
   }
 
   const formatExistingOptionLabel = (item) => {
@@ -108,8 +126,11 @@ function NewBookingPage() {
     setLoadedExistingName('')
     if (!id) {
       setForm({ ...EMPTY_FORM })
+      clearIdFile()
       return
     }
+
+    clearIdFile()
 
     setLoadingExistingDetails(true)
     try {
@@ -144,6 +165,7 @@ function NewBookingPage() {
     setSelectedExistingClientId('')
     setLoadedExistingName('')
     setForm({ ...EMPTY_FORM })
+    clearIdFile()
   }
 
   const bookingTypeOptions = [
@@ -179,6 +201,13 @@ function NewBookingPage() {
     else navigate('/bookings')
   }
 
+  const handleStepClick = (stepKey) => {
+    const targetIdx = STEP_ORDER.indexOf(stepKey)
+    const currentIdx = STEP_ORDER.indexOf(currentStep)
+    if (targetIdx < 0 || targetIdx >= currentIdx) return
+    setCurrentStep(stepKey)
+  }
+
   const handleConfirmBooking = async () => {
     const { valid, errors } = validateReservationBooking({
       form,
@@ -187,6 +216,7 @@ function NewBookingPage() {
       stayRows,
       stayGrandTotal,
       downPayment,
+      idFile,
       isArabic,
     })
 
@@ -204,6 +234,7 @@ function NewBookingPage() {
         stayRows,
         stayGrandTotal,
         downPayment,
+        idFile,
       })
 
       if (!result.success) {
@@ -232,7 +263,7 @@ function NewBookingPage() {
         </div>
       </header>
 
-      <BookingStepper currentStep={currentStep} t={t} />
+      <BookingStepper currentStep={currentStep} t={t} onStepClick={handleStepClick} />
 
       {currentStep === 'individuals' && (
         <>
@@ -247,13 +278,13 @@ function NewBookingPage() {
             {t('newBooking.search')}
           </button>
           <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
+            <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" aria-hidden />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('newBooking.searchPlaceholder')}
-              className={inputClass}
+              className={iconInputClass}
             />
           </div>
         </div>
@@ -371,12 +402,12 @@ function NewBookingPage() {
               <div className="relative">
                 <input
                   type="text"
-                  className={inputClass}
+                  className={iconInputClass}
                   value={form.bookingNumber}
                   onChange={(e) => updateField('bookingNumber', e.target.value)}
                   placeholder={t('newBooking.placeholders.bookingNumber')}
                 />
-                <Hash className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
+                <Hash className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" aria-hidden />
               </div>
             </div>
             <div>
@@ -424,15 +455,28 @@ function NewBookingPage() {
           title={t('newBooking.sections.personal')}
         />
         <div className="space-y-4">
-          <div>
-            <FieldLabel required>{t('newBooking.fields.fullName')}</FieldLabel>
-            <IconInput
-              icon={User}
-              type="text"
-              value={form.fullName}
-              onChange={(e) => updateField('fullName', e.target.value)}
-              placeholder={t('newBooking.placeholders.fullName')}
-            />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <FieldLabel required>{t('newBooking.fields.fullName')}</FieldLabel>
+              <IconInput
+                icon={User}
+                type="text"
+                value={form.fullName}
+                onChange={(e) => updateField('fullName', e.target.value)}
+                placeholder={t('newBooking.placeholders.fullName')}
+              />
+            </div>
+            <div>
+              <FieldLabel>{t('newBooking.fields.email')}</FieldLabel>
+              <IconInput
+                icon={Mail}
+                type="email"
+                dir="ltr"
+                value={form.email}
+                onChange={(e) => updateField('email', e.target.value)}
+                placeholder={t('newBooking.placeholders.email')}
+              />
+            </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
@@ -457,23 +501,32 @@ function NewBookingPage() {
               />
             </div>
             <div>
-              <FieldLabel required>{t('newBooking.fields.idPhoto')}</FieldLabel>
+              <FieldLabel required={!hasSelectedExisting && !isCompanies}>
+                {t('newBooking.fields.idPhoto')}
+              </FieldLabel>
+              <input
+                ref={idFileInputRef}
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={handleIdFileChange}
+              />
               <button
                 type="button"
+                onClick={() => idFileInputRef.current?.click()}
                 className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#e2e8f0] bg-[#f8fafc] py-6 text-[#9ca3af] transition-colors hover:border-brand-primary/40 hover:bg-[#eef2ff]"
               >
                 <ImagePlus className="h-6 w-6" />
-                <span className="text-xs">{t('newBooking.fields.uploadId')}</span>
+                <span className="max-w-full truncate px-2 text-xs">
+                  {idFileName || t('newBooking.fields.uploadId')}
+                </span>
               </button>
             </div>
             <div>
               <FieldLabel required>{t('newBooking.fields.birthDate')}</FieldLabel>
-              <IconInput
-                icon={Calendar}
-                type="text"
-                value={form.birthDate}
+              <IconDateInput
+                value={toInputDateValue(form.birthDate)}
                 onChange={(e) => updateField('birthDate', e.target.value)}
-                placeholder={t('newBooking.placeholders.birthDate')}
               />
             </div>
           </div>
@@ -632,6 +685,7 @@ function NewBookingPage() {
 
       {currentStep === 'booking' && (
         <NewBookingStayStep
+          stayRows={stayRows}
           onGrandTotalChange={setStayGrandTotal}
           onStayRowsChange={setStayRows}
         />

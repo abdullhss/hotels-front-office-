@@ -77,13 +77,18 @@ function NumStepper({ value, onChange, min = 0, max = 99 }) {
   )
 }
 
-function NewBookingStayStep({ onGrandTotalChange, onStayRowsChange }) {
+function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChange }) {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language === 'ar'
   const { unitTitles, loading: unitTitlesLoading } = useUnitTitles()
   const { extraFeatures, loading: extraFeaturesLoading } = useExtraFeatures()
   const [draft, setDraft] = useState({ ...EMPTY_LINE })
-  const [rows, setRows] = useState([])
+
+  const rows = stayRows
+  const setRows = (updater) => {
+    if (!onStayRowsChange) return
+    onStayRowsChange(typeof updater === 'function' ? updater(stayRows) : updater)
+  }
 
   const currency = t('newBooking.stay.currency')
 
