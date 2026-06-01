@@ -143,12 +143,7 @@ function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChang
   const updateDraft = (field, value) => setDraft((prev) => ({ ...prev, [field]: value }))
 
   const handleUnitTypeChange = (unitTypeId) => {
-    const price = getUnitPricePerNight(unitTypeId)
-    setDraft((prev) => ({
-      ...prev,
-      unitType: unitTypeId,
-      unitPrice: unitTypeId && price > 0 ? String(price) : '',
-    }))
+    setDraft((prev) => ({ ...prev, unitType: unitTypeId }))
   }
 
   const formatFeatureLine = (feature, arabic) => {
@@ -163,6 +158,11 @@ function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChang
   }
 
   const getServicePrice = (serviceId) => featureById[serviceId]?.price ?? 0
+
+  const getNightlyCombined = useCallback(
+    (unitTypeId, serviceId) => getUnitPricePerNight(unitTypeId) + getServicePrice(serviceId),
+    [getUnitPricePerNight, featureById]
+  )
 
   const handleAdd = () => {
     const arrival = toInputDateValue(draft.arrivalDate)
@@ -190,8 +190,8 @@ function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChang
       return
     }
 
-    const price = getUnitPricePerNight(draft.unitType)
-    if (!price) {
+    const unitOnly = getUnitPricePerNight(draft.unitType)
+    if (!unitOnly) {
       toast.error(
         isArabic ? 'سعر الليلة غير متوفر لهذه الوحدة' : 'Nightly price is not available for this unit'
       )
@@ -210,9 +210,10 @@ function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChang
 
     const count = Number(draft.unitsCount) || 1
     const servicePrice = getServicePrice(draft.serviceId)
+    const nightlyCombined = getNightlyCombined(draft.unitType, draft.serviceId)
     const total = computeStayLineTotal({
-      unitPricePerNight: price,
-      servicePrice,
+      unitPricePerNight: nightlyCombined,
+      servicePrice: 0,
       nights,
       unitsCount: count,
     })
@@ -222,7 +223,8 @@ function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChang
       {
         id,
         ...draft,
-        unitPrice: price,
+        unitPrice: nightlyCombined,
+        unitBasePrice: unitOnly,
         arrivalDate: arrival,
         departureDate: departure,
         nightsCount: nights,
@@ -238,7 +240,9 @@ function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChang
   const handleDelete = (id) => setRows((prev) => prev.filter((r) => r.id !== id))
 
   const grandTotal = rows.reduce((sum, r) => sum + (r.total || 0), 0)
-  const draftNightPrice = draft.unitType ? getUnitPricePerNight(draft.unitType) : 0
+  const draftNightlyCombined = draft.unitType
+    ? getNightlyCombined(draft.unitType, draft.serviceId)
+    : 0
 
   useEffect(() => {
     onGrandTotalChange?.(grandTotal)
@@ -295,21 +299,6 @@ function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChang
                 onChange={(v) => updateDraft('unitsCount', v)}
                 min={1}
               />
-            </div>
-            <div>
-              <FieldLabel>{t('newBooking.stay.unitPrice')}</FieldLabel>
-              <div
-                className={cn(
-                  inputClass,
-                  'flex min-h-[46px] items-center justify-between bg-[#f1f5f9] pe-3 text-[#374151]'
-                )}
-                aria-live="polite"
-              >
-                <span className="text-sm font-medium">
-                  {draftNightPrice > 0 ? draftNightPrice.toLocaleString() : '—'}
-                </span>
-                <span className="text-xs text-[#9ca3af]">{currency}</span>
-              </div>
             </div>
           </div>
 
@@ -390,6 +379,22 @@ function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChang
             </select>
           </div>
 
+          <div>
+            <FieldLabel>{t('newBooking.stay.unitPriceWithServices')}</FieldLabel>
+            <div
+              className={cn(
+                inputClass,
+                'flex min-h-[46px] items-center justify-between bg-[#f1f5f9] pe-3 text-[#374151]'
+              )}
+              aria-live="polite"
+            >
+              <span className="text-sm font-medium">
+                {draftNightlyCombined > 0 ? draftNightlyCombined.toLocaleString() : '—'}
+              </span>
+              <span className="text-xs text-[#9ca3af]">{currency}</span>
+            </div>
+          </div>
+
           <div className="flex justify-end pt-1">
             <button
               type="button"
@@ -417,7 +422,7 @@ function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChang
                     {t('newBooking.stay.unitsCount')}
                   </TableHead>
                   <TableHead className="text-center text-xs font-semibold text-[#374151]">
-                    {t('newBooking.stay.unitPrice')}
+                    {t('newBooking.stay.unitPriceWithServices')}
                   </TableHead>
                   <TableHead className="text-center text-xs font-semibold text-[#374151]">
                     {t('newBooking.stay.arrivalDate')}

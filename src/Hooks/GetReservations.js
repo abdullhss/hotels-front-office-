@@ -22,7 +22,7 @@ const RESERVATION_COLUMNS_NAMES =
 
 const RESERVATION_UNIT_TABLE_NAME = 'DPvCLQgCzv1ahaFcgjj8f4a69yg/NIQmIIe2PaDHtN0='
 const RESERVATION_UNIT_COLUMNS_NAMES =
-  'Id#Reservation_Id#UnitName_Id#UnitAddFeature_Id#PersonsCountPerUnit#UnitsCount#UnitPricePerNight#TotalNightsCount#TotalPricce'
+  'Id#Reservation_Id#UnitName_Id#UnitAddFeature_Id#PersonsCountPerUnit#UnitsCount#UnitPricePerNight#TotalNightsCount#TotalPrice#FromDate#ToDate#Hotel_id'
 
 const boolStr = (v) => (v ? 'True' : 'False')
 
@@ -763,6 +763,74 @@ export function validateReservationBooking(
   return { valid: errors.length === 0, errors, stay, total, down }
 }
 
+function buildReservationColumnsValues({
+  id = 0,
+  hotelId = RESERVATION_HOTEL_ID,
+  reservationNum = '',
+  reservationDate = '',
+  reservationTypeId = 0,
+  agentId = 0,
+  customerId = 0,
+  fromDate = '',
+  toDate = '',
+  personsCount = 0,
+  adultsCount = 0,
+  childrenCount = 0,
+  roomsCount = 0,
+  totalReservationAmount = 0,
+  downPayment = 0,
+  status = '',
+  statusRemarks = '',
+  isApproved = false,
+  approvedDate = '',
+  approvedBy = 0,
+} = {}) {
+  return [
+    Number(id) || 0,
+    Number(hotelId) || RESERVATION_HOTEL_ID,
+    String(reservationNum ?? '').trim(),
+    String(reservationDate ?? '').trim(),
+    Number(reservationTypeId) || 0,
+    Number(agentId) || 0,
+    Number(customerId) || 0,
+    String(fromDate ?? '').trim(),
+    String(toDate ?? '').trim(),
+    Number(personsCount) || 0,
+    Number(adultsCount) || 0,
+    Number(childrenCount) || 0,
+    Number(roomsCount) || 0,
+    Number(totalReservationAmount) || 0,
+    Number(downPayment) || 0,
+    String(status ?? '').trim(),
+    String(statusRemarks ?? '').trim(),
+    boolStr(isApproved === true || isApproved === 'true'),
+    String(approvedDate ?? '').trim(),
+    Number(approvedBy) || 0,
+  ].join('#')
+}
+
+/** First generated Id from DoMultiTransaction MultiIdinties (reservation row). */
+export function parseFirstMultiId(multiIdinties) {
+  if (multiIdinties == null) return 0
+  const raw = String(multiIdinties).trim()
+  if (!raw) return 0
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) {
+      const first = Number(parsed[0])
+      return Number.isFinite(first) && first > 0 ? first : 0
+    }
+  } catch {
+    /* not JSON */
+  }
+  const parts = raw.split(/[\^#,;]+/).map((p) => p.trim()).filter(Boolean)
+  for (const part of parts) {
+    const n = Number(part)
+    if (Number.isFinite(n) && n > 0) return n
+  }
+  return 0
+}
+
 export const saveReservation = async ({
   id = 0,
   hotelId = RESERVATION_HOTEL_ID,
@@ -786,28 +854,28 @@ export const saveReservation = async ({
   approvedBy = 0,
   wantedAction = 0,
 }) => {
-  const columnsValues = [
-    Number(id) || 0,
-    Number(hotelId) || RESERVATION_HOTEL_ID,
-    String(reservationNum ?? '').trim(),
-    String(reservationDate ?? '').trim(),
-    Number(reservationTypeId) || 0,
-    Number(agentId) || 0,
-    Number(customerId) || 0,
-    String(fromDate ?? '').trim(),
-    String(toDate ?? '').trim(),
-    Number(personsCount) || 0,
-    Number(adultsCount) || 0,
-    Number(childrenCount) || 0,
-    Number(roomsCount) || 0,
-    Number(totalReservationAmount) || 0,
-    Number(downPayment) || 0,
-    String(status ?? '').trim(),
-    String(statusRemarks ?? '').trim(),
-    boolStr(isApproved === true || isApproved === 'true'),
-    String(approvedDate ?? '').trim(),
-    Number(approvedBy) || 0,
-  ].join('#')
+  const columnsValues = buildReservationColumnsValues({
+    id,
+    hotelId,
+    reservationNum,
+    reservationDate,
+    reservationTypeId,
+    agentId,
+    customerId,
+    fromDate,
+    toDate,
+    personsCount,
+    adultsCount,
+    childrenCount,
+    roomsCount,
+    totalReservationAmount,
+    downPayment,
+    status,
+    statusRemarks,
+    isApproved,
+    approvedDate,
+    approvedBy,
+  })
 
   return DoTransaction(
     RESERVATION_TABLE_NAME,
@@ -827,6 +895,9 @@ function buildReservationUnitColumnsValues({
   unitPricePerNight = 0,
   totalNightsCount = 0,
   totalPrice = 0,
+  fromDate = '',
+  toDate = '',
+  hotelId = RESERVATION_HOTEL_ID,
 }) {
   return [
     Number(id) || 0,
@@ -838,7 +909,18 @@ function buildReservationUnitColumnsValues({
     Number(unitPricePerNight) || 0,
     Number(totalNightsCount) || 0,
     Number(totalPrice) || 0,
+    String(fromDate ?? '').trim(),
+    String(toDate ?? '').trim(),
+    Number(hotelId) || RESERVATION_HOTEL_ID,
   ].join('#')
+}
+
+function stayRowNightlyRate(row) {
+  const combined = parseAmount(row?.unitPrice)
+  if (combined > 0) return combined
+  const unitOnly = parseAmount(row?.unitBasePrice ?? row?.unitPrice)
+  const service = parseAmount(row?.servicePrice)
+  return unitOnly + service
 }
 
 function stayRowToUnitColumnsValues(row, reservationId) {
@@ -850,10 +932,60 @@ function stayRowToUnitColumnsValues(row, reservationId) {
     unitAddFeatureId: Number(row?.serviceId) || 0,
     personsCountPerUnit: adults + children,
     unitsCount: Number(row?.unitsCount) || 1,
-    unitPricePerNight: parseAmount(row?.unitPrice),
+    unitPricePerNight: stayRowNightlyRate(row),
     totalNightsCount: computeNightsCount(row?.arrivalDate, row?.departureDate),
     totalPrice: Number(row?.total) || 0,
+    fromDate: formatDisplayDate(toInputDateValue(row?.arrivalDate)),
+    toDate: formatDisplayDate(toInputDateValue(row?.departureDate)),
+    hotelId: RESERVATION_HOTEL_ID,
   })
+}
+
+/** DoMultiTransaction segments: part1^part2^part3 (^ separator only, none after last). */
+function joinMultiSegments(parts = []) {
+  if (!Array.isArray(parts) || parts.length === 0) return ''
+  return parts.join('^')
+}
+
+/**
+ * Reservation + units in one DoMultiTransaction:
+ * MultiTableName: reservation^unit^unit^…
+ * MultiColumnsValues: res#cols^unit#cols^…
+ * Unit rows use Reservation_Id 0; server links to the inserted reservation.
+ */
+export function buildReservationBookingMultiPayload({
+  reservation = {},
+  stayRows = [],
+} = {}) {
+  const rows = Array.isArray(stayRows) ? stayRows : []
+  const reservationCols = buildReservationColumnsValues(reservation)
+  const unitCols = rows.map((row) => stayRowToUnitColumnsValues(row, 0))
+  const tableParts = [RESERVATION_TABLE_NAME, ...rows.map(() => RESERVATION_UNIT_TABLE_NAME)]
+  const valueParts = [reservationCols, ...unitCols]
+  const multiTableName = joinMultiSegments(tableParts)
+  const multiColumnsValues = joinMultiSegments(valueParts)
+
+  return { multiTableName, multiColumnsValues }
+}
+
+export const saveReservationBookingMulti = async ({
+  reservation = {},
+  stayRows = [],
+  wantedAction = 0,
+}) => {
+  const { multiTableName, multiColumnsValues } = buildReservationBookingMultiPayload({
+    reservation,
+    stayRows,
+  })
+  if (!multiTableName || !multiColumnsValues) {
+    return {
+      success: false,
+      errorMessage: 'No reservation data to save',
+      MultiIdinties: null,
+    }
+  }
+
+  return DoMultiTransaction(multiTableName, multiColumnsValues, wantedAction)
 }
 
 /** Build DoMultiTransaction payload: table^table^… and row#cols^row#cols^… */
@@ -865,8 +997,8 @@ export function buildReservationUnitsMultiPayload(stayRows = [], reservationId) 
   }
 
   const rowValues = rows.map((row) => stayRowToUnitColumnsValues(row, resId))
-  const multiTableName = rows.map(() => RESERVATION_UNIT_TABLE_NAME).join('^') + '^'
-  const multiColumnsValues = rowValues.join('^')
+  const multiTableName = joinMultiSegments(rows.map(() => RESERVATION_UNIT_TABLE_NAME))
+  const multiColumnsValues = joinMultiSegments(rowValues)
 
   return { multiTableName, multiColumnsValues }
 }
@@ -901,20 +1033,28 @@ export const saveReservationUnit = async ({
   unitPricePerNight = 0,
   totalNightsCount = 0,
   totalPrice = 0,
+  fromDate = '',
+  toDate = '',
+  hotelId = RESERVATION_HOTEL_ID,
   wantedAction = 0,
 }) => {
-  const multiTableName = `${RESERVATION_UNIT_TABLE_NAME}^`
-  const multiColumnsValues = buildReservationUnitColumnsValues({
-    id,
-    reservationId,
-    unitNameId,
-    unitAddFeatureId,
-    personsCountPerUnit,
-    unitsCount,
-    unitPricePerNight,
-    totalNightsCount,
-    totalPrice,
-  })
+  const multiTableName = joinMultiSegments([RESERVATION_UNIT_TABLE_NAME])
+  const multiColumnsValues = joinMultiSegments([
+    buildReservationUnitColumnsValues({
+      id,
+      reservationId,
+      unitNameId,
+      unitAddFeatureId,
+      personsCountPerUnit,
+      unitsCount,
+      unitPricePerNight,
+      totalNightsCount,
+      totalPrice,
+      fromDate,
+      toDate,
+      hotelId,
+    }),
+  ])
 
   return DoMultiTransaction(multiTableName, multiColumnsValues, wantedAction)
 }
@@ -986,52 +1126,47 @@ export async function saveReservationFromBooking({
   const total = Number(stayGrandTotal) || 0
   const down = parseAmount(downPayment)
 
-  const res = await saveReservation({
-    hotelId: RESERVATION_HOTEL_ID,
-    reservationNum: form.bookingNumber,
-    reservationDate: formatDisplayDate(toInputDateValue(form.bookingDate)),
-    reservationTypeId: Number(form.reservationTypeId) || 0,
-    agentId,
-    customerId,
-    fromDate: formatDisplayDate(stay.fromDate),
-    toDate: formatDisplayDate(stay.toDate),
-    personsCount: stay.personsCount,
-    adultsCount: stay.adultsCount,
-    childrenCount: stay.childrenCount,
-    roomsCount: stay.roomsCount,
-    totalReservationAmount: total,
-    downPayment: down,
-    status: '1',
-    statusRemarks: '',
-    isApproved: false,
-    approvedDate: 'default',
-    approvedBy: 0,
+  const multiRes = await saveReservationBookingMulti({
+    reservation: {
+      hotelId: RESERVATION_HOTEL_ID,
+      reservationNum: form.bookingNumber,
+      reservationDate: formatDisplayDate(toInputDateValue(form.bookingDate)),
+      reservationTypeId: Number(form.reservationTypeId) || 0,
+      agentId,
+      customerId,
+      fromDate: formatDisplayDate(stay.fromDate),
+      toDate: formatDisplayDate(stay.toDate),
+      personsCount: stay.personsCount,
+      adultsCount: stay.adultsCount,
+      childrenCount: stay.childrenCount,
+      roomsCount: stay.roomsCount,
+      totalReservationAmount: total,
+      downPayment: down,
+      status: '1',
+      statusRemarks: '',
+      isApproved: false,
+      approvedDate: 'default',
+      approvedBy: 0,
+    },
+    stayRows,
     wantedAction: 0,
   })
 
-  if (!isDoTransactionSuccess(res)) {
+  if (!isDoTransactionSuccess(multiRes)) {
     return {
       success: false,
-      errorMessage: res?.errorMessage ?? res?.error ?? 'Reservation save failed',
-      newId: res?.NewId,
+      errorMessage:
+        multiRes?.errorMessage ?? multiRes?.error ?? 'Failed to save reservation',
+      newId: parseFirstMultiId(multiRes?.MultiIdinties) || null,
     }
   }
 
-  const reservationId = Number(res?.NewId) || 0
+  const reservationId = parseFirstMultiId(multiRes?.MultiIdinties)
   if (!reservationId) {
     return {
       success: false,
       errorMessage: 'Reservation saved but no Id returned',
       newId: null,
-    }
-  }
-
-  const unitsRes = await saveReservationUnitsFromStayRows(stayRows, reservationId)
-  if (!unitsRes.success) {
-    return {
-      success: false,
-      errorMessage: unitsRes.errorMessage ?? 'Failed to save reservation units',
-      newId: reservationId,
     }
   }
 
