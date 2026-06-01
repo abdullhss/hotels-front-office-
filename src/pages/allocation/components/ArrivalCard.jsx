@@ -10,9 +10,15 @@ function ArrivalCard({ arrival, isArabic }) {
   const startDate = isArabic ? arrival.startDateAr : arrival.startDateEn
   const endDate = isArabic ? arrival.endDateAr : arrival.endDateEn
   const price = isArabic ? arrival.priceAr : arrival.priceEn
-  const roomLabel = isArabic
-    ? `${arrival.roomCount} غرفة`
-    : `${arrival.roomCount} ${arrival.roomCount === 1 ? 'room' : 'rooms'}`
+  const roomLabel =
+    arrival.totalRooms > 1
+      ? t('allocation.roomOfTotal', {
+          roomIndex: arrival.roomIndex,
+          roomTotal: arrival.totalRooms,
+        })
+      : t('allocation.oneRoom')
+
+  const dateLabel = t('allocation.dateRange', { start: startDate, end: endDate })
 
   return (
     <article className="flex flex-col gap-4 rounded-2xl border border-[#e8edf5] bg-[#fafbfd] p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -22,10 +28,14 @@ function ArrivalCard({ arrival, isArabic }) {
         </span>
         <div className="min-w-0">
           <h3 className="m-0 truncate text-base font-bold text-[#111827]">{guestName}</h3>
+          {arrival.phone ? (
+            <p className="mt-0.5 text-sm text-[#9ca3af]" dir="ltr">
+              {arrival.phone}
+            </p>
+          ) : null}
           <p className="mt-1 text-sm text-[#6b7280]">
-            {roomLabel}
-            <span className="mx-1.5 text-[#cbd5e1]">.</span>
-            {t('allocation.dateRange', { start: startDate, end: endDate })}
+            <span className="block">{roomLabel}</span>
+            <span className="mt-0.5 block">{dateLabel}</span>
           </p>
         </div>
       </div>
@@ -34,12 +44,12 @@ function ArrivalCard({ arrival, isArabic }) {
         <div className="text-end">
           <p className="m-0 text-base font-bold text-[#111827]">{price}</p>
           <p className="mt-0.5 text-sm text-[#9ca3af]" dir="ltr">
-            #{arrival.id}
+            #{arrival.reservationNum || arrival.id}
           </p>
         </div>
         <button
           type="button"
-          onClick={() => navigate(`/allocation/${arrival.id}/check-in`)}
+          onClick={() => navigate(`/allocation/${arrival.reservationId}/check-in`)}
           className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-primary-hover"
         >
           <LogIn className="h-4 w-4" />

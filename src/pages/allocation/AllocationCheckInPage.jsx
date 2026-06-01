@@ -1,8 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { Check, Plus, Search } from 'lucide-react'
-import { CHECK_IN_DETAILS } from './allocationData.js'
+import {
+  mapReservationToCheckInBooking,
+  resolveReservationForCheckIn,
+} from '../../Hooks/GetReservations.js'
 import CheckInSummaryCards from './components/CheckInSummaryCards.jsx'
 import CheckInAdditionalInfo from './components/CheckInAdditionalInfo.jsx'
 import CheckInRoomsTable from './components/CheckInRoomsTable.jsx'
@@ -15,14 +19,60 @@ function AllocationCheckInPage() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const isArabic = i18n.language === 'ar'
-  const [searchQuery, setSearchQuery] = useState(() => (bookingId ? `#${bookingId}` : ''))
+  const currency = t('newBooking.stay.currency')
 
-  const booking = useMemo(() => {
-    const id = Number(bookingId)
-    return CHECK_IN_DETAILS[id] ?? null
-  }, [bookingId])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [booking, setBooking] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  if (!booking) {
+  const loadBooking = useCallback(
+    async (idOrSearch) => {
+      const target = String(idOrSearch ?? bookingId ?? '').trim()
+      if (!target) {
+        setBooking(null)
+        setLoading(false)
+        return
+      }
+
+      setLoading(true)
+      try {
+        const result = await resolveReservationForCheckIn(target)
+        if (!result.success || !result.reservation) {
+          toast.error(result.error ?? t('allocation.notFound'))
+          setBooking(null)
+          return
+        }
+
+        const mapped = mapReservationToCheckInBooking(result.reservation, isArabic, currency)
+        setBooking(mapped)
+        setSearchQuery(
+          mapped?.reservationNum ? `#${mapped.reservationNum}` : `#${result.reservation.id}`
+        )
+
+        if (String(result.reservation.id) !== String(bookingId)) {
+          navigate(`/allocation/${result.reservation.id}/check-in`, { replace: true })
+        }
+      } catch (err) {
+        toast.error(err?.message ?? t('allocation.loadFailed'))
+        setBooking(null)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [bookingId, currency, isArabic, navigate, t]
+  )
+
+  useEffect(() => {
+    loadBooking(bookingId)
+  }, [loadBooking, bookingId])
+
+  const handleSearch = () => {
+    const q = searchQuery.trim()
+    if (!q) return
+    loadBooking(q)
+  }
+
+  if (!loading && !booking) {
     return <Navigate to="/allocation" replace />
   }
 
@@ -51,40 +101,51 @@ function AllocationCheckInPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={`#${booking.id}`}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSearch()
+              }}
+              placeholder={t('allocation.searchPlaceholder')}
               className="w-full rounded-xl border border-[#e2e8f0] bg-[#f8fafc] py-3 pe-10 ps-3 text-sm text-[#374151] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-primary"
             />
           </div>
           <button
             type="button"
-            className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-primary-hover sm:w-auto"
+            onClick={handleSearch}
+            disabled={loading}
+            className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-50 sm:w-auto"
           >
             <Search className="h-4 w-4" />
-            {t('allocation.search')}
+            {loading ? t('allocation.searching') : t('allocation.search')}
           </button>
         </div>
       </div>
 
-      <CheckInSummaryCards booking={booking} isArabic={isArabic} />
-      <CheckInAdditionalInfo booking={booking} isArabic={isArabic} />
-      <CheckInRoomsTable booking={booking} isArabic={isArabic} />
+      {loading ? (
+        <p className="m-0 py-12 text-center text-sm text-[#6b7280]">{t('allocation.searching')}</p>
+      ) : booking ? (
+        <>
+          <CheckInSummaryCards booking={booking} isArabic={isArabic} />
+          <CheckInAdditionalInfo booking={booking} isArabic={isArabic} />
+          <CheckInRoomsTable key={booking.id} booking={booking} isArabic={isArabic} />
 
-      <div className="flex flex-wrap items-center gap-4 pt-2">
-        <button
-          type="button"
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-primary-hover"
-        >
-          <Check className="h-4 w-4" />
-          {t('allocation.checkInPage.completeAllocation')}
-        </button>
-        <button
-          type="button"
-          onClick={() => navigate('/allocation')}
-          className="text-sm font-medium text-[#dc2626] transition-colors hover:text-[#b91c1c]"
-        >
-          {t('allocation.checkInPage.cancel')}
-        </button>
-      </div>
+          <div className="flex flex-wrap items-center gap-4 pt-2">
+            <button
+              type="button"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-primary-hover"
+            >
+              <Check className="h-4 w-4" />
+              {t('allocation.checkInPage.completeAllocation')}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/allocation')}
+              className="text-sm font-medium text-[#dc2626] transition-colors hover:text-[#b91c1c]"
+            >
+              {t('allocation.checkInPage.cancel')}
+            </button>
+          </div>
+        </>
+      ) : null}
     </section>
   )
 }

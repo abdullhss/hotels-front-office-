@@ -1,49 +1,97 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { Bus, Plus, Search } from 'lucide-react'
-import { TODAY_ARRIVALS } from './allocationData.js'
+import {
+  expandReservationsForAllocation,
+  isReservationLookupQuery,
+  mapReservationToAllocationArrival,
+  resolveReservationForCheckIn,
+  searchReservationsForAllocation,
+} from '../../Hooks/GetReservations.js'
 import ArrivalCard from './components/ArrivalCard.jsx'
 import AllocationEmptyState from './components/AllocationEmptyState.jsx'
 
 const panelClass =
   'min-w-0 max-w-full rounded-2xl border border-[#e2e8f0] bg-white p-3 shadow-sm sm:p-4'
 
-function matchesSearch(arrival, query, isArabic) {
-  const q = query.trim().toLowerCase()
-  if (!q) return true
-
-  const name = (isArabic ? arrival.guestNameAr : arrival.guestNameEn).toLowerCase()
-  const id = String(arrival.id)
-  const phone = arrival.phone.replace(/\s/g, '')
-
-  return (
-    name.includes(q) ||
-    id.includes(q.replace('#', '')) ||
-    phone.includes(q.replace(/\s/g, ''))
-  )
-}
-
 function AllocationPage() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const isArabic = i18n.language === 'ar'
+  const currency = t('newBooking.stay.currency')
+
   const [searchQuery, setSearchQuery] = useState('')
   const [appliedQuery, setAppliedQuery] = useState('')
+  const [arrivals, setArrivals] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const filteredArrivals = useMemo(
-    () => TODAY_ARRIVALS.filter((arrival) => matchesSearch(arrival, appliedQuery, isArabic)),
-    [appliedQuery, isArabic]
+  const loadArrivals = useCallback(
+    async (query = appliedQuery) => {
+      setLoading(true)
+      try {
+        const result = await searchReservationsForAllocation({ searchText: query })
+
+        if (!result.success) {
+          toast.error(result.error ?? t('allocation.loadFailed'))
+          setArrivals([])
+          return
+        }
+
+        const expanded = expandReservationsForAllocation(result.reservations)
+        const uiRows = expanded
+          .map((slot) => mapReservationToAllocationArrival(slot, isArabic, currency))
+          .filter(Boolean)
+        setArrivals(uiRows)
+      } catch (err) {
+        toast.error(err?.message ?? t('allocation.loadFailed'))
+        setArrivals([])
+      } finally {
+        setLoading(false)
+      }
+    },
+    [appliedQuery, isArabic, currency, t]
   )
 
-  const hasData = filteredArrivals.length > 0
-  const bookingsCountLabel = isArabic
-    ? `${filteredArrivals.length} حجوزات`
-    : `${filteredArrivals.length} ${filteredArrivals.length === 1 ? 'booking' : 'bookings'}`
+  useEffect(() => {
+    loadArrivals(appliedQuery)
+  }, [loadArrivals, appliedQuery])
 
-  const handleSearch = () => {
-    setAppliedQuery(searchQuery)
+  const hasData = !loading && arrivals.length > 0
+  const bookingsCountLabel = isArabic
+    ? `${arrivals.length} حجوزات`
+    : `${arrivals.length} ${arrivals.length === 1 ? 'booking' : 'bookings'}`
+
+  const handleSearch = async () => {
+    const q = searchQuery.trim()
+    if (!q) {
+      setAppliedQuery('')
+      return
+    }
+
+    if (isReservationLookupQuery(q)) {
+      setLoading(true)
+      try {
+        const result = await resolveReservationForCheckIn(q)
+        if (result.success && result.reservation) {
+          navigate(`/allocation/${result.reservation.id}/check-in`)
+          return
+        }
+        toast.error(result.error ?? t('allocation.notFound'))
+        setArrivals([])
+      } catch (err) {
+        toast.error(err?.message ?? t('allocation.loadFailed'))
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
+    setAppliedQuery(q)
   }
+
+  const showEmpty = !loading && arrivals.length === 0
 
   return (
     <section className="mx-auto max-w-[1400px] space-y-4">
@@ -80,16 +128,19 @@ function AllocationPage() {
           <button
             type="button"
             onClick={handleSearch}
-            className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-primary-hover sm:w-auto"
+            disabled={loading}
+            className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-50 sm:w-auto"
           >
             <Search className="h-4 w-4" />
-            {t('allocation.search')}
+            {loading ? t('allocation.searching') : t('allocation.search')}
           </button>
         </div>
       </div>
 
       <div className={panelClass}>
-        {!hasData ? (
+        {loading ? (
+          <p className="m-0 py-8 text-center text-sm text-[#6b7280]">{t('allocation.searching')}</p>
+        ) : showEmpty ? (
           <AllocationEmptyState />
         ) : (
           <>
@@ -108,8 +159,8 @@ function AllocationPage() {
             </div>
 
             <div className="space-y-3">
-              {filteredArrivals.map((arrival) => (
-                <ArrivalCard key={arrival.id} arrival={arrival} isArabic={isArabic} />
+              {arrivals.map((arrival) => (
+                <ArrivalCard key={arrival.key} arrival={arrival} isArabic={isArabic} />
               ))}
             </div>
           </>

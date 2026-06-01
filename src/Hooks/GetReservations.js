@@ -13,6 +13,8 @@ export const RESERVATION_HOTEL_ID = EMPLOYEE_HOTEL_ID
 
 const LIST_RESERVATIONS_PROCEDURE = 'FJlxEMmpZTAV9nftZApHGnsiDJk+FL4DKOBOXxJf0p4='
 const GET_RESERVATION_DETAILS_PROCEDURE = 'FJlxEMmpZTAV9nftZApHGgvcdAIR6Vkt10kBcufW0js='
+/** Hotel_SearchForReservation — hotel_id#value#encrypt */
+const SEARCH_FOR_RESERVATION_PROCEDURE = 'h6uuUAX0zwHfm21Jp2Rvt/kmz0u7+7fHR7Ug6X6HWO8='
 
 const RESERVATION_TABLE_NAME = '1Xx5r4QVCRAA5fv+CZ63Fg=='
 const RESERVATION_COLUMNS_NAMES =
@@ -37,17 +39,49 @@ function parseJsonList(value) {
 function parseNestedJson(value) {
   if (value == null) return []
   if (Array.isArray(value)) return value
-  if (typeof value === 'string') {
-    const trimmed = value.trim()
+
+  let current = value
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (current == null) return []
+    if (Array.isArray(current)) return current
+    if (typeof current === 'object') return [current]
+
+    if (typeof current !== 'string') return []
+
+    const trimmed = current.trim()
     if (!trimmed || trimmed === '[]') return []
+
     try {
       const parsed = JSON.parse(trimmed)
-      return Array.isArray(parsed) ? parsed : []
+      if (Array.isArray(parsed)) return parsed
+      if (typeof parsed === 'string') {
+        current = parsed
+        continue
+      }
+      if (parsed && typeof parsed === 'object') return [parsed]
+      return []
     } catch {
       return []
     }
   }
   return []
+}
+
+/** Match CustomerData row to reservation Customer_Id when present. */
+export function getReservationCustomer(row) {
+  const customers = row?.customerData ?? []
+  if (!customers.length) return null
+
+  const customerId = Number(row?.customerId) || 0
+  if (customerId) {
+    const match = customers.find((c) => {
+      const cid = Number(c.id ?? c.Id ?? c.Customer_Id ?? c.customer_Id ?? 0)
+      return cid === customerId
+    })
+    if (match) return match
+  }
+
+  return customers[0]
 }
 
 /** Normalize reservation row from list/search procedures. */
@@ -169,6 +203,312 @@ export function filterReservationsByStat(rows, statKey) {
   if (statKey === 'confirmed') return rows.filter((r) => r.isApproved)
   if (statKey === 'pending') return rows.filter((r) => !r.isApproved)
   return rows
+}
+
+export function getReservationPartyName(row, isArabic) {
+  if (!row) return ''
+  const c = getReservationCustomer(row)
+  if (c) {
+    const nameAr = String(c.CustomerNameA ?? c.customerNameA ?? '').trim()
+    const nameEn = String(c.CustomerNameE ?? c.customerNameE ?? '').trim()
+    return isArabic ? nameAr || nameEn : nameEn || nameAr
+  }
+  if (row.agentId > 0) {
+    return isArabic
+      ? row.typeNameAr || row.typeNameEn || `شركة #${row.agentId}`
+      : row.typeNameEn || row.typeNameAr || `Agent #${row.agentId}`
+  }
+  return isArabic ? `عميل #${row.customerId}` : `Customer #${row.customerId}`
+}
+
+export function getReservationPhone(row) {
+  const c = getReservationCustomer(row)
+  if (!c) return ''
+  return String(c.Mobile ?? c.mobile ?? c.WhatsUp ?? c.whatsUp ?? '').trim()
+}
+
+/** One allocation row per room when RoomsCount > 1. */
+export function expandReservationsForAllocation(rows) {
+  if (!Array.isArray(rows)) return []
+  const expanded = []
+  rows.forEach((row) => {
+    const totalRooms = Math.max(1, Number(row.roomsCount) || 1)
+    for (let roomIndex = 1; roomIndex <= totalRooms; roomIndex += 1) {
+      expanded.push({ row, roomIndex, totalRooms })
+    }
+  })
+  return expanded
+}
+
+function formatMoneyAmount(amount, currencyLabel) {
+  const n = Number(amount)
+  if (!Number.isFinite(n)) return `0.00 ${currencyLabel}`
+  return `${n.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ${currencyLabel}`
+}
+
+function nightsLabel(nights, isArabic) {
+  const n = Number(nights) || 0
+  return isArabic
+    ? `${n} ${n === 1 ? 'ليلة' : 'ليالي'}`
+    : `${n} ${n === 1 ? 'night' : 'nights'}`
+}
+
+function distributeCount(total, slots) {
+  const count = Math.max(0, Number(total) || 0)
+  const n = Math.max(1, slots)
+  const base = Math.floor(count / n)
+  const remainder = count % n
+  return Array.from({ length: n }, (_, i) => base + (i < remainder ? 1 : 0))
+}
+
+/** Detect #999, 999, or reservation id style search → open check-in detail. */
+export function normalizeAllocationSearchQuery(query) {
+  const raw = String(query ?? '').trim()
+  if (!raw) return { kind: 'list', value: '' }
+
+  const withoutHash = raw.replace(/^#+/, '').trim()
+  if (!withoutHash) return { kind: 'list', value: '' }
+
+  if (/^#/.test(raw) || /^\d+$/.test(withoutHash)) {
+    return { kind: 'lookup', value: withoutHash }
+  }
+
+  if (/^[a-zA-Z0-9_-]+$/.test(withoutHash)) {
+    return { kind: 'lookup', value: withoutHash }
+  }
+
+  return { kind: 'list', value: raw }
+}
+
+export function isReservationLookupQuery(query) {
+  return normalizeAllocationSearchQuery(query).kind === 'lookup'
+}
+
+/** Resolve a single reservation from search / id for allocation check-in. */
+export async function resolveReservationForCheckIn(searchValue) {
+  const parsed = normalizeAllocationSearchQuery(searchValue)
+  if (parsed.kind !== 'lookup') {
+    return { success: false, reservation: null, error: 'Not a reservation lookup' }
+  }
+
+  const value = parsed.value
+  const searchResult = await searchReservationsForAllocation({ searchText: value })
+
+  if (searchResult.success && searchResult.reservations.length > 0) {
+    const exact = searchResult.reservations.filter(
+      (r) =>
+        String(r.id) === value ||
+        String(r.reservationNum).toLowerCase() === value.toLowerCase()
+    )
+    const pick = exact.length === 1 ? exact[0] : searchResult.reservations[0]
+    if (pick) {
+      const details = await getReservationDetails(pick.id)
+      if (details.success && details.reservation) {
+        return { success: true, reservation: details.reservation, error: null }
+      }
+      return { success: true, reservation: pick, error: null }
+    }
+  }
+
+  const numericId = Number(value)
+  if (numericId > 0) {
+    const details = await getReservationDetails(numericId)
+    if (details.success && details.reservation) {
+      return { success: true, reservation: details.reservation, error: null }
+    }
+  }
+
+  return {
+    success: false,
+    reservation: null,
+    error: searchResult.error ?? 'Reservation not found',
+  }
+}
+
+export function mapReservationToCheckInBooking(row, isArabic, currencyLabel = 'د.ل.') {
+  if (!row) return null
+
+  const customer = getReservationCustomer(row)
+  const total = Number(row.totalAmount) || 0
+  const down = Number(row.downPayment) || 0
+  const remaining = Math.max(0, total - down)
+  const units = row.reservationUnits ?? []
+  const roomSlots = Math.max(1, Number(row.roomsCount) || 1)
+  const nights = Number(row.daysCount) || 0
+  const fromIso = toInputDateValue(row.fromDate)
+  const toIso = toInputDateValue(row.toDate)
+  const adultSplit = distributeCount(row.adultsCount, roomSlots)
+  const childSplit = distributeCount(row.childrenCount, roomSlots)
+  const perRoomPrice = roomSlots > 0 ? total / roomSlots : total
+
+  const dash = '—'
+
+  let rooms = []
+
+  if (units.length > 0) {
+    rooms = units.map((unit, idx) => {
+      const unitFrom = toInputDateValue(unit.FromDate ?? unit.fromDate) || fromIso
+      const unitTo = toInputDateValue(unit.ToDate ?? unit.toDate) || toIso
+      const unitNights = Number(unit.DaysCount ?? unit.daysCount) || nights
+      const price = Number(unit.Price ?? unit.price ?? unit.TotalPrice ?? perRoomPrice) || 0
+      return {
+        id: Number(unit.Id ?? unit.id) || idx + 1,
+        typeAr: unit.UnitTypeNameA ?? unit.unitTypeNameA ?? unit.TypeNameA ?? dash,
+        typeEn: unit.UnitTypeNameE ?? unit.unitTypeNameE ?? unit.TypeNameE ?? dash,
+        adults: Number(unit.AdultsCount ?? unit.adultsCount ?? unit.AudultsCount) || 0,
+        children: Number(unit.ChildrenCount ?? unit.childrenCount) || 0,
+        fromDate: unitFrom,
+        toDate: unitTo,
+        nights: unitNights,
+        nightsAr: nightsLabel(unitNights, true),
+        nightsEn: nightsLabel(unitNights, false),
+        priceAr: formatMoneyAmount(price, currencyLabel),
+        priceEn: formatMoneyAmount(price, currencyLabel),
+      }
+    })
+  } else {
+    rooms = Array.from({ length: roomSlots }, (_, idx) => {
+      const index = idx + 1
+      return {
+        id: index,
+        typeAr: isArabic ? `غرفة ${index}` : `Room ${index}`,
+        typeEn: `Room ${index}`,
+        adults: adultSplit[idx] ?? 0,
+        children: childSplit[idx] ?? 0,
+        fromDate: fromIso,
+        toDate: toIso,
+        nights,
+        nightsAr: nightsLabel(nights, true),
+        nightsEn: nightsLabel(nights, false),
+        priceAr: formatMoneyAmount(perRoomPrice, currencyLabel),
+        priceEn: formatMoneyAmount(perRoomPrice, currencyLabel),
+      }
+    })
+  }
+
+  const totalRoomNights = rooms.reduce((sum, room) => sum + (Number(room.nights) || 0), 0)
+  const totalRoomsPrice = rooms.reduce((sum, room) => {
+    const price = Number(String(room.priceEn).replace(/[^\d.]/g, ''))
+    return sum + (Number.isFinite(price) ? price : 0)
+  }, 0)
+
+  return {
+    id: row.id,
+    reservationNum: row.reservationNum,
+    guestNameAr: getReservationPartyName(row, true),
+    guestNameEn: getReservationPartyName(row, false),
+    clientTypeAr: row.typeNameAr || 'عميل',
+    clientTypeEn: row.typeNameEn || 'Customer',
+    phone: getReservationPhone(row) || dash,
+    idNumber: String(customer?.IdNum ?? customer?.idNum ?? dash),
+    bookingDate: toInputDateValue(row.reservationDate),
+    arrivalDate: fromIso,
+    departureDate: toIso,
+    totalAmountAr: formatMoneyAmount(total, currencyLabel),
+    totalAmountEn: formatMoneyAmount(total, currencyLabel),
+    paidAmountAr: formatMoneyAmount(down, currencyLabel),
+    paidAmountEn: formatMoneyAmount(down, currencyLabel),
+    remainingAmountAr: formatMoneyAmount(remaining, currencyLabel),
+    remainingAmountEn: formatMoneyAmount(remaining, currencyLabel),
+    nationalityAr: customer?.NationalityNameA ?? customer?.nationalityNameA ?? dash,
+    nationalityEn: customer?.NationalityNameE ?? customer?.nationalityNameE ?? dash,
+    professionAr: dash,
+    professionEn: dash,
+    birthDate: dash,
+    visitPurposeAr: dash,
+    visitPurposeEn: dash,
+    genderAr: customer?.genderName ?? dash,
+    genderEn: customer?.genderName ?? dash,
+    source: row.typeNameEn || row.typeNameAr || dash,
+    sourceEn: row.typeNameEn || dash,
+    notesAr: row.statusRemarks || dash,
+    notesEn: row.statusRemarks || dash,
+    totalRooms: rooms.length,
+    adults: Number(row.adultsCount) || 0,
+    children: Number(row.childrenCount) || 0,
+    rooms,
+    totalNightsAr: nightsLabel(units.length > 0 ? totalRoomNights : nights, true),
+    totalNightsEn: nightsLabel(units.length > 0 ? totalRoomNights : nights, false),
+    totalRoomsPriceAr: formatMoneyAmount(totalRoomsPrice || total, currencyLabel),
+    totalRoomsPriceEn: formatMoneyAmount(totalRoomsPrice || total, currencyLabel),
+    raw: row,
+  }
+}
+
+export function mapReservationToAllocationArrival(
+  { row, roomIndex, totalRooms },
+  isArabic,
+  currencyLabel = 'د.ل.'
+) {
+  if (!row) return null
+  const total = row.totalAmount
+  const price = `${total.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ${currencyLabel}`
+
+  return {
+    key: `${row.id}-${roomIndex}`,
+    id: row.id,
+    reservationId: row.id,
+    reservationNum: row.reservationNum,
+    roomIndex,
+    totalRooms,
+    roomCount: 1,
+    guestNameAr: getReservationPartyName(row, true),
+    guestNameEn: getReservationPartyName(row, false),
+    phone: getReservationPhone(row),
+    startDateAr: formatDisplayDate(row.fromDate),
+    startDateEn: formatDisplayDate(row.fromDate),
+    endDateAr: formatDisplayDate(row.toDate),
+    endDateEn: formatDisplayDate(row.toDate),
+    priceAr: price,
+    priceEn: price,
+    raw: row,
+  }
+}
+
+/**
+ * Hotel_SearchForReservation — hotel_id#value#encrypt
+ */
+export async function searchReservationsForAllocation({
+  hotelId = RESERVATION_HOTEL_ID,
+  searchText = '',
+} = {}) {
+  const hid = Number(hotelId) || RESERVATION_HOTEL_ID
+  const value = String(searchText ?? '').trim()
+  const params = `${hid}#${value}#$????`
+
+  try {
+    const response = await executeProcedure(SEARCH_FOR_RESERVATION_PROCEDURE, params)
+
+    if (!response?.success) {
+      return {
+        success: false,
+        reservations: [],
+        total: 0,
+        error: response?.error ?? 'Request failed',
+      }
+    }
+
+    const { rows, total } = parseReservationListPayload(response.decrypted ?? {})
+    return {
+      success: true,
+      reservations: rows,
+      total,
+      error: null,
+    }
+  } catch (err) {
+    return {
+      success: false,
+      reservations: [],
+      total: 0,
+      error: err?.message ?? 'Request failed',
+    }
+  }
 }
 
 export function mapReservationToTableRow(row, isArabic, currencyLabel = 'د.ل.') {

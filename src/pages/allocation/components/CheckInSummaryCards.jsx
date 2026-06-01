@@ -20,7 +20,9 @@ function CheckInSummaryCards({ booking, isArabic }) {
             {t('allocation.checkInPage.clientCard')}
           </h3>
           <span className="inline-flex rounded-lg bg-[#eef0ff] px-2.5 py-1 text-xs font-medium text-brand-primary">
-            {t('allocation.checkInPage.clientBadge')}
+            {isArabic
+              ? booking.clientTypeAr || t('allocation.checkInPage.clientBadge')
+              : booking.clientTypeEn || t('allocation.checkInPage.clientBadge')}
           </span>
         </div>
         <div className="space-y-3">
