@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Check, Plus, Search } from 'lucide-react'
 import {
+  deleteUnitAssignmentHeader,
   saveUnitAssignmentRowMulti,
   saveUnitAssignmentHeader,
   mapReservationToCheckInBooking,
@@ -130,15 +131,20 @@ function AllocationCheckInPage() {
     }
 
     setSavingAssignment(true)
+    let headerIdForRollback = 0
     try {
       const raw = booking.raw
+      const assignmentNumFromSearch = String(searchQuery ?? '')
+        .trim()
+        .replace(/^#+/, '')
       console.group('[Allocation][Save] Start')
       console.log('Reservation raw:', raw)
       console.log('Rows payload (validated):', rows)
 
       const headerPayload = {
         hotelId: Number(raw.hotelId) || 0,
-        assignmentNum: '1',
+        assignmentNum:
+          assignmentNumFromSearch || String(booking?.reservationNum ?? raw.reservationNum ?? '').trim(),
         assignDate: new Date().toISOString().slice(0, 10),
         assignType: Number(raw.reservationTypeId) || 0,
         reservationId: Number(raw.id) || 0,
@@ -169,6 +175,7 @@ function AllocationCheckInPage() {
       }
 
       const newId = Number(result.assignmentId) || 0
+      headerIdForRollback = newId
       setSavedAssignmentId(newId)
       if (!newId) {
         toast.error(isArabic ? 'لم يتم إرجاع رقم التسكين' : 'Assignment id was not returned')
@@ -188,12 +195,11 @@ function AllocationCheckInPage() {
         console.log('Row response:', rowRes)
         console.groupEnd()
         if (!isDoTransactionSuccess(rowRes)) {
-          toast.error(
-            rowRes?.errorMessage ??
-              (isArabic
-                ? 'فشل حفظ تفاصيل التسكين (الغرف/النزلاء)'
-                : 'Failed to save allocation details (units/persons)')
-          )
+          const rollbackRes = await deleteUnitAssignmentHeader(newId)
+          console.log('Rollback header response:', rollbackRes)
+          setSavedAssignmentId(0)
+          setSavedAssignmentUnitIds([])
+          toast.error(isArabic ? 'فشل حفظ التسكين وتم التراجع عن رأس التسكين' : 'Allocation save failed and header was rolled back')
           return
         }
         const unitId = Number(rowRes.unitAssignmentUnitId) || 0
@@ -203,11 +209,17 @@ function AllocationCheckInPage() {
 
       toast.success(
         isArabic
-          ? `تم حفظ التسكين بالكامل. رقم الرأس ${newId}`
-          : `Allocation saved successfully. Header id ${newId}`
+          ? 'تم حفظ التسكين بالكامل'
+          : 'Allocation saved successfully'
       )
     } catch (err) {
       console.error('[Allocation][Save] Error:', err)
+      if (headerIdForRollback > 0) {
+        const rollbackRes = await deleteUnitAssignmentHeader(headerIdForRollback)
+        console.log('Rollback header response:', rollbackRes)
+        setSavedAssignmentId(0)
+        setSavedAssignmentUnitIds([])
+      }
       toast.error(err?.message ?? (isArabic ? 'فشل حفظ التسكين' : 'Failed to save allocation'))
     } finally {
       console.groupEnd()

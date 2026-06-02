@@ -266,6 +266,13 @@ function formatApiDateDdMmYyyy(value) {
   return `${d}/${m}/${y}`
 }
 
+/** Strip leading # — values are joined with # and must not contain that character. */
+function normalizeAssignmentNum(value) {
+  return String(value ?? '')
+    .trim()
+    .replace(/^#+/, '')
+}
+
 export async function getAvailableRoomsForReservationUnit({
   reservationId,
   id,
@@ -1121,7 +1128,7 @@ function buildUnitAssignmentColumnsValues({
   return [
     Number(id) || 0,
     Number(hotelId) || RESERVATION_HOTEL_ID,
-    String(assignmentNum ?? '').trim(),
+    normalizeAssignmentNum(assignmentNum),
     formatApiDateDdMmYyyy(assignDate),
     Number(assignType) || 0,
     Number(reservationId) || 0,
@@ -1202,6 +1209,14 @@ export const saveUnitAssignmentHeader = async ({
     ...res,
     assignmentId: parseDoTransactionNewId(res?.NewId),
   }
+}
+
+export const deleteUnitAssignmentHeader = async (unitAssignmentId) => {
+  const id = Number(unitAssignmentId) || 0
+  if (!id) {
+    return { success: false, errorMessage: 'Invalid UnitAssignment id' }
+  }
+  return DoTransaction(UNIT_ASSIGNMENT_TABLE_NAME, String(id), 2, 'Id')
 }
 
 const UNIT_ASSIGNMENT_PERSON_ID_TYPES = {
