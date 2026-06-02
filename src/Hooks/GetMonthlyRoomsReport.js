@@ -1,3 +1,4 @@
+import { toInputDateValue } from '../pages/new-booking/dateUtils.js'
 import { executeProcedure } from '../services/apiServices'
 import { EMPLOYEE_HOTEL_ID } from './GetEmployees'
 
@@ -14,14 +15,6 @@ export function normalizeFloorNumParam(value) {
   if (!raw) return -1
   const n = Number(raw)
   return Number.isFinite(n) ? Math.trunc(n) : -1
-}
-
-function parseDate(value) {
-  const raw = String(value ?? '').trim()
-  if (!raw) return null
-  const d = new Date(raw)
-  if (Number.isNaN(d.getTime())) return null
-  return d
 }
 
 function parseChunkedJsonFromResultRows(rows) {
@@ -59,11 +52,11 @@ function normalizeRoomRow(raw) {
 
 function normalizeDailyReport(raw) {
   if (!raw || typeof raw !== 'object') return null
-  const reportDate = parseDate(raw.ReportDate ?? raw.reportDate)
-  if (!reportDate) return null
+  const reportDateIso = toInputDateValue(raw.ReportDate ?? raw.reportDate)
+  if (!reportDateIso) return null
   const roomsRaw = Array.isArray(raw.Rooms) ? raw.Rooms : []
   return {
-    reportDateIso: reportDate.toISOString().slice(0, 10),
+    reportDateIso,
     rooms: roomsRaw.map((room) => normalizeRoomRow(room)).filter(Boolean),
   }
 }

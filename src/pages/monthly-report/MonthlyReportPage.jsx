@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { EMPLOYEE_HOTEL_ID } from '../../Hooks/GetEmployees'
 import useExtraFeatures from '../../Hooks/GetExtraFeatures'
 import { fetchMonthlyRoomsReport, normalizeFloorNumParam } from '../../Hooks/GetMonthlyRoomsReport'
+import { toInputDateValue } from '../new-booking/dateUtils.js'
 
 const monthNames = {
   ar: [
@@ -130,7 +131,7 @@ function MonthlyReportPage() {
     return Array.from({ length: count }, (_, idx) => {
       const d = new Date(selectedYear, selectedMonth, idx + 1)
       return {
-        iso: d.toISOString().slice(0, 10),
+        iso: toInputDateValue(d),
         label: dayLabels[d.getDay()],
         day: d.getDate(),
       }
@@ -405,7 +406,7 @@ function MonthlyReportPage() {
                             </p>
                             <p className={`m-0 text-sm ${styles.sub}`}>
                               {isArabic
-                                ? `إشغال ${occupied} · حجز ${booked}`
+                                ? `ساكنة ${occupied} · حجز ${booked}`
                                 : `Occ ${occupied} · Bkd ${booked}`}
                             </p>
                           </div>
