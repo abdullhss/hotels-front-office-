@@ -129,6 +129,7 @@ export const executeProcedure = async (ProcedureName, procedureValues) => {
     return {
       success: true,
       decrypted: decryptedRow,
+      decryptedData: decryptedResponse.data,
       raw: response.data,
     };
   } catch (error) {

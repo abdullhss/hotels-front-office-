@@ -9,6 +9,7 @@ import {
   Menu,
   X,
   LogOut,
+  CalendarDays,
 } from 'lucide-react'
 
 import { cn } from '../lib/utils.js'
@@ -20,6 +21,13 @@ const navItems = [
   { key: 'units', labelAr: 'الوحدات', labelEn: 'Units', path: '/units', icon: Hotel },
   { key: 'unit-transfer', labelAr: 'نقل بين الوحدات', labelEn: 'Unit Transfer', path: '/unit-transfer', icon: Hotel },
   { key: 'checkout', labelAr: 'المغادرة', labelEn: 'Check-out', path: '/check-out', icon: Users },
+  {
+    key: 'monthly-report',
+    labelAr: 'التقرير الشهري',
+    labelEn: 'Monthly Report',
+    path: '/monthly-report',
+    icon: CalendarDays,
+  },
   { key: 'customers', labelAr: 'العملاء', labelEn: 'Customers', path: '/customers', icon: Users },
 ]
 
