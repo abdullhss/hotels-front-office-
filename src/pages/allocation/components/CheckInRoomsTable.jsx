@@ -1,15 +1,101 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { User } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import CheckInGuestDataModal from './CheckInGuestDataModal.jsx'
+import { getAvailableRoomsForReservationUnit } from '../../../Hooks/GetReservations.js'
 
-function CheckInRoomsTable({ booking, isArabic }) {
+function CheckInRoomsTable({ booking, isArabic, reservationId, hotelId, onRowsDataChange }) {
   const { t } = useTranslation()
   const [roomNumbers, setRoomNumbers] = useState(() =>
     Object.fromEntries(booking.rooms.map((room) => [room.id, '']))
   )
   const [guestModalRoom, setGuestModalRoom] = useState(null)
   const [roomGuests, setRoomGuests] = useState({})
+  const [availableRoomsByRow, setAvailableRoomsByRow] = useState({})
+  const [loadingRows, setLoadingRows] = useState({})
+
+  const roomRows = useMemo(() => booking.rooms ?? [], [booking.rooms])
+
+  useEffect(() => {
+    let ignore = false
+
+    const loadRooms = async () => {
+      const nextRows = {}
+      const nextLoading = {}
+
+      roomRows.forEach((room) => {
+        nextRows[room.id] = []
+        nextLoading[room.id] = false
+      })
+
+      setAvailableRoomsByRow(nextRows)
+      setLoadingRows(nextLoading)
+
+      await Promise.all(
+        roomRows.map(async (room) => {
+          const id = Number(room.id) || 0
+          if (!id) return
+
+          if (!ignore) {
+            setLoadingRows((prev) => ({ ...prev, [room.id]: true }))
+          }
+
+          const result = await getAvailableRoomsForReservationUnit({
+            reservationId,
+            hotelId,
+            id,
+            fromDate: room.fromDate,
+            toDate: room.toDate,
+          })
+          if (ignore) return
+
+          if (!result.success) {
+            setAvailableRoomsByRow((prev) => ({ ...prev, [room.id]: [] }))
+            setLoadingRows((prev) => ({ ...prev, [room.id]: false }))
+            toast.error(result.error ?? t('allocation.checkInPage.availableRoomsLoadFailed'))
+            return
+          }
+
+          setAvailableRoomsByRow((prev) => ({ ...prev, [room.id]: result.rooms }))
+          setLoadingRows((prev) => ({ ...prev, [room.id]: false }))
+        })
+      )
+    }
+
+    loadRooms()
+
+    return () => {
+      ignore = true
+    }
+  }, [roomRows, reservationId, hotelId, t])
+
+  useEffect(() => {
+    if (typeof onRowsDataChange !== 'function') return
+    const payload = roomRows.map((room) => {
+      const selectedHotelUnitId = Number(roomNumbers[room.id]) || 0
+      const selectedRoom = (availableRoomsByRow[room.id] ?? []).find(
+        (r) => Number(r.id) === selectedHotelUnitId
+      )
+      return {
+        roomId: room.id,
+        unitAssignmentUnit: {
+          hotelUnitId: selectedHotelUnitId,
+          unitAddFeatureId:
+            Number(selectedRoom?.unitAddFeatureId) || Number(room.unitAddFeatureId) || 0,
+          personsCountPerUnit: (Number(room.adults) || 0) + (Number(room.children) || 0),
+          fromDate: room.fromDate,
+          toDate: room.toDate,
+          unitPricePerNight: Number(selectedRoom?.unitPricePerNight) || 0,
+          totalNightsCount: Number(room.nights) || 0,
+          totalPricce:
+            (Number(selectedRoom?.unitPricePerNight) || 0) * (Number(room.nights) || 0),
+        },
+        persons: roomGuests[room.id] ?? [],
+      }
+    })
+    onRowsDataChange(payload)
+  }, [roomRows, roomNumbers, availableRoomsByRow, roomGuests, onRowsDataChange])
 
   const roomsSummaryLabel = isArabic
     ? `${booking.totalRooms} غرف إجمالي`
@@ -77,7 +163,7 @@ function CheckInRoomsTable({ booking, isArabic }) {
             </tr>
           </thead>
           <tbody>
-            {booking.rooms.map((room) => (
+            {roomRows.map((room) => (
               <tr key={room.id} className="border-b border-[#f1f5f9]">
                 <td className="px-3 py-4 font-medium text-[#111827]">
                   {isArabic ? room.typeAr : room.typeEn}
@@ -106,15 +192,25 @@ function CheckInRoomsTable({ booking, isArabic }) {
                   {isArabic ? room.priceAr : room.priceEn}
                 </td>
                 <td className="px-3 py-4">
-                  <input
-                    type="text"
-                    value={roomNumbers[room.id]}
+                  <select
+                    value={roomNumbers[room.id] ?? ''}
                     onChange={(e) =>
                       setRoomNumbers((prev) => ({ ...prev, [room.id]: e.target.value }))
                     }
-                    placeholder={t('allocation.checkInPage.roomNumberPlaceholder')}
-                    className="w-full min-w-[120px] rounded-xl border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2 text-sm text-[#374151] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-primary"
-                  />
+                    disabled={loadingRows[room.id] || !availableRoomsByRow[room.id]?.length}
+                    className="w-full min-w-[140px] appearance-none rounded-xl border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2 text-sm text-[#374151] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-primary disabled:opacity-60"
+                  >
+                    <option value="">
+                      {loadingRows[room.id]
+                        ? t('allocation.checkInPage.loadingAvailableRooms')
+                        : t('allocation.checkInPage.roomNumberPlaceholder')}
+                    </option>
+                    {(availableRoomsByRow[room.id] ?? []).map((availableRoom) => (
+                      <option key={availableRoom.id} value={availableRoom.id}>
+                        {availableRoom.unitNum}
+                      </option>
+                    ))}
+                  </select>
                 </td>
                 <td className="px-3 py-4">
                   <button

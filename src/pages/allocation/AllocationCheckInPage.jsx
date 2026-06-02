@@ -4,9 +4,12 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Check, Plus, Search } from 'lucide-react'
 import {
+  saveUnitAssignmentRowMulti,
+  saveUnitAssignmentHeader,
   mapReservationToCheckInBooking,
   resolveReservationForCheckIn,
 } from '../../Hooks/GetReservations.js'
+import { isDoTransactionSuccess } from '../../Hooks/GetAgents.js'
 import CheckInSummaryCards from './components/CheckInSummaryCards.jsx'
 import CheckInAdditionalInfo from './components/CheckInAdditionalInfo.jsx'
 import CheckInRoomsTable from './components/CheckInRoomsTable.jsx'
@@ -24,6 +27,10 @@ function AllocationCheckInPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [booking, setBooking] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [savingAssignment, setSavingAssignment] = useState(false)
+  const [savedAssignmentId, setSavedAssignmentId] = useState(0)
+  const [savedAssignmentUnitIds, setSavedAssignmentUnitIds] = useState([])
+  const [allocationRowsData, setAllocationRowsData] = useState([])
 
   const loadBooking = useCallback(
     async (idOrSearch) => {
@@ -70,6 +77,142 @@ function AllocationCheckInPage() {
     const q = searchQuery.trim()
     if (!q) return
     loadBooking(q)
+  }
+
+  const handleCompleteAllocation = async () => {
+    if (!booking?.raw) {
+      toast.error(isArabic ? 'لا توجد بيانات حجز للحفظ' : 'No booking data to save')
+      return
+    }
+
+    const rows = Array.isArray(allocationRowsData) ? allocationRowsData : []
+    if (!rows.length) {
+      toast.error(isArabic ? 'لا توجد صفوف للتسكين' : 'No allocation rows to save')
+      return
+    }
+
+    const invalidRoomRowIndex = rows.findIndex((r) => Number(r?.unitAssignmentUnit?.hotelUnitId) <= 0)
+    if (invalidRoomRowIndex >= 0) {
+      toast.error(
+        isArabic
+          ? `يرجى اختيار رقم الغرفة في الصف ${invalidRoomRowIndex + 1}`
+          : `Please select room number for row ${invalidRoomRowIndex + 1}`
+      )
+      return
+    }
+
+    const selectedRoomIds = rows.map((r) => Number(r?.unitAssignmentUnit?.hotelUnitId) || 0)
+    const uniqueRoomIds = new Set(selectedRoomIds)
+    if (uniqueRoomIds.size !== selectedRoomIds.length) {
+      toast.error(
+        isArabic
+          ? 'لا يمكن اختيار نفس رقم الغرفة في أكثر من صف'
+          : 'The same room number cannot be selected in multiple rows'
+      )
+      return
+    }
+
+    const mismatchGuestRowIndex = rows.findIndex((r) => {
+      const expected = Number(r?.unitAssignmentUnit?.personsCountPerUnit) || 0
+      const actual = Array.isArray(r?.persons) ? r.persons.length : 0
+      return expected !== actual
+    })
+    if (mismatchGuestRowIndex >= 0) {
+      const row = rows[mismatchGuestRowIndex]
+      const expected = Number(row?.unitAssignmentUnit?.personsCountPerUnit) || 0
+      const actual = Array.isArray(row?.persons) ? row.persons.length : 0
+      toast.error(
+        isArabic
+          ? `عدد بيانات النزلاء في الصف ${mismatchGuestRowIndex + 1} يجب أن يساوي ${expected} (الحالي ${actual})`
+          : `Guest data count in row ${mismatchGuestRowIndex + 1} must equal ${expected} (current ${actual})`
+      )
+      return
+    }
+
+    setSavingAssignment(true)
+    try {
+      const raw = booking.raw
+      console.group('[Allocation][Save] Start')
+      console.log('Reservation raw:', raw)
+      console.log('Rows payload (validated):', rows)
+
+      const headerPayload = {
+        hotelId: Number(raw.hotelId) || 0,
+        assignmentNum: '1',
+        assignDate: new Date().toISOString().slice(0, 10),
+        assignType: Number(raw.reservationTypeId) || 0,
+        reservationId: Number(raw.id) || 0,
+        reservationTypeId: Number(raw.reservationTypeId) || 0,
+        agentId: Number(raw.agentId) || 0,
+        customerId: Number(raw.customerId) || 0,
+        fromDate: raw.fromDate,
+        toDate: raw.toDate,
+        personsCount: Number(raw.personsCount) || 0,
+        adultsCount: Number(raw.adultsCount) || 0,
+        childrenCount: Number(raw.childrenCount) || 0,
+        roomsCount: Number(raw.roomsCount) || booking.rooms?.length || 0,
+        totalReservationAmount: Number(raw.totalAmount) || 0,
+        downPayment: Number(raw.downPayment) || 0,
+        status: Number(raw.status) || 0,
+        statusRemarks: raw.statusRemarks ?? '',
+      }
+      console.log('Header payload:', headerPayload)
+
+      const result = await saveUnitAssignmentHeader({
+        ...headerPayload,
+      })
+      console.log('Header response:', result)
+
+      if (!isDoTransactionSuccess(result)) {
+        toast.error(result?.errorMessage ?? (isArabic ? 'فشل حفظ التسكين' : 'Failed to save allocation'))
+        return
+      }
+
+      const newId = Number(result.assignmentId) || 0
+      setSavedAssignmentId(newId)
+      if (!newId) {
+        toast.error(isArabic ? 'لم يتم إرجاع رقم التسكين' : 'Assignment id was not returned')
+        return
+      }
+
+      const savedUnitIds = []
+      for (const row of rows) {
+        console.group('[Allocation][Save][Row]')
+        console.log('Row payload:', row)
+        console.log('UnitAssignment_Id:', newId)
+        const rowRes = await saveUnitAssignmentRowMulti({
+          unitAssignmentId: newId,
+          unit: row.unitAssignmentUnit,
+          persons: row.persons,
+        })
+        console.log('Row response:', rowRes)
+        console.groupEnd()
+        if (!isDoTransactionSuccess(rowRes)) {
+          toast.error(
+            rowRes?.errorMessage ??
+              (isArabic
+                ? 'فشل حفظ تفاصيل التسكين (الغرف/النزلاء)'
+                : 'Failed to save allocation details (units/persons)')
+          )
+          return
+        }
+        const unitId = Number(rowRes.unitAssignmentUnitId) || 0
+        if (unitId > 0) savedUnitIds.push(unitId)
+      }
+      setSavedAssignmentUnitIds(savedUnitIds)
+
+      toast.success(
+        isArabic
+          ? `تم حفظ التسكين بالكامل. رقم الرأس ${newId}`
+          : `Allocation saved successfully. Header id ${newId}`
+      )
+    } catch (err) {
+      console.error('[Allocation][Save] Error:', err)
+      toast.error(err?.message ?? (isArabic ? 'فشل حفظ التسكين' : 'Failed to save allocation'))
+    } finally {
+      console.groupEnd()
+      setSavingAssignment(false)
+    }
   }
 
   if (!loading && !booking) {
@@ -126,15 +269,26 @@ function AllocationCheckInPage() {
         <>
           <CheckInSummaryCards booking={booking} isArabic={isArabic} />
           <CheckInAdditionalInfo booking={booking} isArabic={isArabic} />
-          <CheckInRoomsTable key={booking.id} booking={booking} isArabic={isArabic} />
+          <CheckInRoomsTable
+            key={booking.id}
+            booking={booking}
+            isArabic={isArabic}
+            reservationId={booking.id}
+            hotelId={booking?.raw?.hotelId}
+            onRowsDataChange={setAllocationRowsData}
+          />
 
           <div className="flex flex-wrap items-center gap-4 pt-2">
             <button
               type="button"
+              onClick={handleCompleteAllocation}
+              disabled={savingAssignment}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-brand-primary-hover"
             >
               <Check className="h-4 w-4" />
-              {t('allocation.checkInPage.completeAllocation')}
+              {savingAssignment
+                ? t('allocation.searching')
+                : t('allocation.checkInPage.completeAllocation')}
             </button>
             <button
               type="button"
@@ -143,6 +297,18 @@ function AllocationCheckInPage() {
             >
               {t('allocation.checkInPage.cancel')}
             </button>
+            {savedAssignmentId > 0 ? (
+              <span className="rounded-lg bg-[#eef2ff] px-3 py-1 text-sm font-medium text-brand-primary">
+                {isArabic ? `رقم التسكين: ${savedAssignmentId}` : `Assignment ID: ${savedAssignmentId}`}
+              </span>
+            ) : null}
+            {savedAssignmentUnitIds.length > 0 ? (
+              <span className="rounded-lg bg-[#ecfeff] px-3 py-1 text-sm font-medium text-[#0f766e]">
+                {isArabic
+                  ? `وحدات محفوظة: ${savedAssignmentUnitIds.join(', ')}`
+                  : `Saved unit rows: ${savedAssignmentUnitIds.join(', ')}`}
+              </span>
+            ) : null}
           </div>
         </>
       ) : null}

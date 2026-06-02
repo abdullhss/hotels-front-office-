@@ -15,6 +15,8 @@ const LIST_RESERVATIONS_PROCEDURE = 'FJlxEMmpZTAV9nftZApHGnsiDJk+FL4DKOBOXxJf0p4
 const GET_RESERVATION_DETAILS_PROCEDURE = 'FJlxEMmpZTAV9nftZApHGgvcdAIR6Vkt10kBcufW0js='
 /** Hotel_SearchForReservation — hotel_id#value#encrypt */
 const SEARCH_FOR_RESERVATION_PROCEDURE = 'h6uuUAX0zwHfm21Jp2Rvt/kmz0u7+7fHR7Ug6X6HWO8='
+/** Hotel_GetAvailableRooms — Hotel_Id#Reservation_Id#UnitName_Id#FromDate#ToDate#StartNum#Count */
+const GET_AVAILABLE_ROOMS_PROCEDURE = 'YVUU47P3dlraloAMRyrZCJpS94lWg96d5cvNxaJ4UiM='
 
 const RESERVATION_TABLE_NAME = '1Xx5r4QVCRAA5fv+CZ63Fg=='
 const RESERVATION_COLUMNS_NAMES =
@@ -23,6 +25,11 @@ const RESERVATION_COLUMNS_NAMES =
 const RESERVATION_UNIT_TABLE_NAME = 'DPvCLQgCzv1ahaFcgjj8f4a69yg/NIQmIIe2PaDHtN0='
 const RESERVATION_UNIT_COLUMNS_NAMES =
   'Id#Reservation_Id#UnitName_Id#UnitAddFeature_Id#PersonsCountPerUnit#UnitsCount#UnitPricePerNight#TotalNightsCount#TotalPrice#FromDate#ToDate#Hotel_id'
+const UNIT_ASSIGNMENT_TABLE_NAME = 'oo0xSUDBgNmqRfwvq1Hmwg=='
+const UNIT_ASSIGNMENT_COLUMNS_NAMES =
+  'Id#Hotel_Id#AssignmentNum#AssignDate#AssignType#Reservation_Id#ReservationType_Id#Agent_Id#Customer_Id#FromDate#ToDate#PersonsCount#AudultsCount#ChildrenCount#RoomsCount#TotalReservationAmount#DownPayment#Status#StatusRemarks'
+const UNIT_ASSIGNMENT_UNITS_TABLE_NAME = 'ZAjqiId7hr6wIs6Z9Dba/T7z+0Mi1Sv9bhnytqOyHeA='
+const UNIT_ASSIGNMENT_PERSONS_TABLE_NAME = 'iN4+CZDtKgmrQ7/eBznsICXGVnYNL5rKWNvyBWP//iY='
 
 const boolStr = (v) => (v ? 'True' : 'False')
 
@@ -200,6 +207,121 @@ function parseReservationListPayload(payload) {
   }
 
   return { rows, total, stats }
+}
+
+function normalizeAvailableRoomRow(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  return {
+    id: Number(raw.Id ?? raw.id ?? 0),
+    unitNum: String(raw.UnitNum ?? raw.unitNum ?? '').trim(),
+    unitNameId: Number(raw.UnitName_Id ?? raw.unitName_Id ?? 0),
+    unitNameAr: String(raw.UnitNameA ?? raw.unitNameA ?? '').trim(),
+    unitNameEn: String(raw.UnitNameE ?? raw.unitNameE ?? '').trim(),
+    floorNum: Number(raw.FloorNum ?? raw.floorNum ?? 0),
+    maxPersonCount: Number(raw.MaxPersonCount ?? raw.maxPersonCount ?? 0),
+    personsCount: Number(raw.PersonsCount ?? raw.personsCount ?? 0),
+    unitAddFeatureId: Number(raw.UnitAddFeature_Id ?? raw.unitAddFeature_Id ?? 0),
+    featureNameAr: String(raw.FreatureNameA ?? raw.FeatureNameA ?? '').trim(),
+    featureNameEn: String(raw.FreatureNameE ?? raw.FeatureNameE ?? '').trim(),
+    featurePrice: Number(raw.FeaturePrice ?? raw.featurePrice ?? 0),
+    unitPricePerNight: Number(raw.UnitPricePerNight ?? raw.unitPricePerNight ?? 0),
+    raw,
+  }
+}
+
+function parseAvailableRoomsPayload(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return { rooms: [], total: 0 }
+  }
+
+  const keys = Object.keys(payload)
+  let dataRaw =
+    payload.AvailableRoomsData ??
+    payload.availableRoomsData ??
+    payload.Data ??
+    payload.data
+
+  if (dataRaw == null) {
+    const dataKey = keys.find((k) => /availableroomsdata$/i.test(k))
+    if (dataKey) dataRaw = payload[dataKey]
+  }
+
+  let countRaw =
+    payload.AvailableRoomsCount ??
+    payload.availableRoomsCount ??
+    payload.Count ??
+    payload.count
+
+  const list = parseJsonList(dataRaw)
+  const rooms = list.map((item) => normalizeAvailableRoomRow(item)).filter(Boolean)
+  const total = Number(countRaw ?? rooms.length ?? 0)
+
+  return { rooms, total }
+}
+
+function formatApiDateDdMmYyyy(value) {
+  const iso = toInputDateValue(value)
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
+}
+
+export async function getAvailableRoomsForReservationUnit({
+  reservationId,
+  id,
+  unitNameId,
+  fromDate,
+  toDate,
+  hotelId = RESERVATION_HOTEL_ID,
+  startNum = 1,
+  count = 200,
+} = {}) {
+  const hid = Number(hotelId) || RESERVATION_HOTEL_ID
+  const rid = Number(reservationId) || 0
+  const uid = Number(id ?? unitNameId) || 0
+  const fromIso = toInputDateValue(fromDate)
+  const toIso = toInputDateValue(toDate)
+  const start = Math.max(1, Number(startNum) || 1)
+  const limit = Math.max(1, Number(count) || 200)
+
+  if (!rid) {
+    return { success: false, rooms: [], total: 0, error: 'Invalid reservation id' }
+  }
+  if (!uid) {
+    return { success: false, rooms: [], total: 0, error: 'Invalid unit name id' }
+  }
+  if (!fromIso || !toIso) {
+    return { success: false, rooms: [], total: 0, error: 'Invalid date range' }
+  }
+
+  const params = `${hid}#${rid}#${uid}#${fromIso}#${toIso}#${start}#${limit}`
+
+  try {
+    const response = await executeProcedure(GET_AVAILABLE_ROOMS_PROCEDURE, params)
+    if (!response?.success) {
+      return {
+        success: false,
+        rooms: [],
+        total: 0,
+        error: response?.error ?? 'Request failed',
+      }
+    }
+
+    const { rooms, total } = parseAvailableRoomsPayload(response.decrypted ?? {})
+    return {
+      success: true,
+      rooms,
+      total,
+      error: null,
+    }
+  } catch (err) {
+    return {
+      success: false,
+      rooms: [],
+      total: 0,
+      error: err?.message ?? 'Request failed',
+    }
+  }
 }
 
 export function filterReservationsByStat(rows, statKey) {
@@ -400,6 +522,7 @@ export function mapReservationToCheckInBooking(row, isArabic, currencyLabel = '�
 
       return {
         id: Number(unit.Id ?? unit.id) || idx + 1,
+        unitNameId: Number(unit.UnitName_Id ?? unit.unitName_Id ?? 0),
         typeAr:
           unit.UnitNameA ??
           unit.unitNameA ??
@@ -433,6 +556,7 @@ export function mapReservationToCheckInBooking(row, isArabic, currencyLabel = '�
       const index = idx + 1
       return {
         id: index,
+        unitNameId: 0,
         typeAr: isArabic ? `غرفة ${index}` : `Room ${index}`,
         typeEn: `Room ${index}`,
         adults: adultSplit[idx] ?? 0,
@@ -893,6 +1017,32 @@ export function parseFirstMultiId(multiIdinties) {
   return 0
 }
 
+export function parseDoTransactionNewId(newIdValue) {
+  if (newIdValue == null) return 0
+  const raw = String(newIdValue).trim()
+  if (!raw) return 0
+
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) {
+      const first = Number(parsed[0])
+      return Number.isFinite(first) && first > 0 ? first : 0
+    }
+    if (typeof parsed === 'number') {
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+    }
+    if (typeof parsed === 'string') {
+      const n = Number(parsed.trim())
+      return Number.isFinite(n) && n > 0 ? n : 0
+    }
+  } catch {
+    /* not JSON */
+  }
+
+  const n = Number(raw)
+  return Number.isFinite(n) && n > 0 ? n : 0
+}
+
 export const saveReservation = async ({
   id = 0,
   hotelId = RESERVATION_HOTEL_ID,
@@ -945,6 +1095,258 @@ export const saveReservation = async ({
     wantedAction,
     RESERVATION_COLUMNS_NAMES
   )
+}
+
+function buildUnitAssignmentColumnsValues({
+  id = 0,
+  hotelId = RESERVATION_HOTEL_ID,
+  assignmentNum = '',
+  assignDate = '',
+  assignType = 0,
+  reservationId = 0,
+  reservationTypeId = 0,
+  agentId = 0,
+  customerId = 0,
+  fromDate = '',
+  toDate = '',
+  personsCount = 0,
+  adultsCount = 0,
+  childrenCount = 0,
+  roomsCount = 0,
+  totalReservationAmount = 0,
+  downPayment = 0,
+  status = 0,
+  statusRemarks = '',
+}) {
+  return [
+    Number(id) || 0,
+    Number(hotelId) || RESERVATION_HOTEL_ID,
+    String(assignmentNum ?? '').trim(),
+    formatApiDateDdMmYyyy(assignDate),
+    Number(assignType) || 0,
+    Number(reservationId) || 0,
+    Number(reservationTypeId) || 0,
+    Number(agentId) || 0,
+    Number(customerId) || 0,
+    formatApiDateDdMmYyyy(fromDate),
+    formatApiDateDdMmYyyy(toDate),
+    Number(personsCount) || 0,
+    Number(adultsCount) || 0,
+    Number(childrenCount) || 0,
+    Number(roomsCount) || 0,
+    Number(totalReservationAmount) || 0,
+    Number(downPayment) || 0,
+    Number(status) || 0,
+    String(statusRemarks ?? '').trim(),
+  ].join('#')
+}
+
+export const saveUnitAssignmentHeader = async ({
+  id = 0,
+  hotelId = RESERVATION_HOTEL_ID,
+  assignmentNum = '',
+  assignDate = '',
+  assignType = 0,
+  reservationId = 0,
+  reservationTypeId = 0,
+  agentId = 0,
+  customerId = 0,
+  fromDate = '',
+  toDate = '',
+  personsCount = 0,
+  adultsCount = 0,
+  childrenCount = 0,
+  roomsCount = 0,
+  totalReservationAmount = 0,
+  downPayment = 0,
+  status = 0,
+  statusRemarks = '',
+  wantedAction = 0,
+} = {}) => {
+  const columnsValues = buildUnitAssignmentColumnsValues({
+    id,
+    hotelId,
+    assignmentNum,
+    assignDate,
+    assignType,
+    reservationId,
+    reservationTypeId,
+    agentId,
+    customerId,
+    fromDate,
+    toDate,
+    personsCount,
+    adultsCount,
+    childrenCount,
+    roomsCount,
+    totalReservationAmount,
+    downPayment,
+    status,
+    statusRemarks,
+  })
+
+  console.group('[Allocation][UnitAssignment][Header] Request')
+  console.log('TableName:', UNIT_ASSIGNMENT_TABLE_NAME)
+  console.log('ColumnsNames:', UNIT_ASSIGNMENT_COLUMNS_NAMES)
+  console.log('ColumnsValues:', columnsValues)
+  console.groupEnd()
+
+  const res = await DoTransaction(
+    UNIT_ASSIGNMENT_TABLE_NAME,
+    columnsValues,
+    wantedAction,
+    UNIT_ASSIGNMENT_COLUMNS_NAMES
+  )
+
+  return {
+    ...res,
+    assignmentId: parseDoTransactionNewId(res?.NewId),
+  }
+}
+
+const UNIT_ASSIGNMENT_PERSON_ID_TYPES = {
+  national_id: 1,
+  passport: 2,
+  residency: 3,
+}
+
+const UNIT_ASSIGNMENT_PERSON_GENDERS = {
+  male: 1,
+  female: 2,
+}
+
+function buildUnitAssignmentUnitColumnsValues({
+  id = 0,
+  unitAssignmentId = 0,
+  hotelUnitId = 0,
+  unitAddFeatureId = 0,
+  personsCountPerUnit = 0,
+  fromDate = '',
+  toDate = '',
+  unitPricePerNight = 0,
+  totalNightsCount = 0,
+  totalPricce = 0,
+}) {
+  return [
+    Number(id) || 0,
+    Number(unitAssignmentId) || 0,
+    Number(hotelUnitId) || 0,
+    Number(unitAddFeatureId) || 0,
+    Number(personsCountPerUnit) || 0,
+    formatApiDateDdMmYyyy(fromDate),
+    formatApiDateDdMmYyyy(toDate),
+    Number(unitPricePerNight) || 0,
+    Number(totalNightsCount) || 0,
+    Number(totalPricce) || 0,
+  ].join('#')
+}
+
+function buildUnitAssignmentPersonColumnsValues({
+  id = 0,
+  unitAssignmentUnitsId = 0,
+  customerName = '',
+  idType = 0,
+  idNum = '',
+  nationalityId = 0,
+  birthDate = '',
+  genderId = 0,
+  job = '',
+}) {
+  return [
+    Number(id) || 0,
+    Number(unitAssignmentUnitsId) || 0,
+    String(customerName ?? '').trim(),
+    Number(idType) || 0,
+    String(idNum ?? '').trim(),
+    Number(nationalityId) || 0,
+    formatApiDateDdMmYyyy(birthDate),
+    Number(genderId) || 0,
+    String(job ?? '').trim(),
+  ].join('#')
+}
+
+function normalizeUnitAssignmentPerson(person) {
+  if (!person || typeof person !== 'object') return null
+  const idType = String(person.idType ?? '').trim().toLowerCase()
+  const gender = String(person.gender ?? '').trim().toLowerCase()
+  return {
+    customerName: person.fullName ?? '',
+    idType: UNIT_ASSIGNMENT_PERSON_ID_TYPES[idType] ?? 0,
+    idNum: person.idNumber ?? '',
+    nationalityId: Number(person.nationality) || 0,
+    birthDate: person.birthDate,
+    genderId: UNIT_ASSIGNMENT_PERSON_GENDERS[gender] ?? 0,
+    job: person.profession ?? '',
+  }
+}
+
+/**
+ * Save one assignment unit row + its persons in one DoMultiTransaction.
+ * UnitAssignmentUnits_Id is set to 0 in persons rows so backend can link to the inserted unit row.
+ */
+export const saveUnitAssignmentRowMulti = async ({
+  unitAssignmentId = 0,
+  unit = {},
+  persons = [],
+  wantedAction = 0,
+} = {}) => {
+  const assignmentId = Number(unitAssignmentId) || 0
+  const hotelUnitId = Number(unit?.hotelUnitId) || 0
+  if (!assignmentId) {
+    return { success: false, errorMessage: 'Invalid UnitAssignment_Id', MultiIdinties: null }
+  }
+  if (!hotelUnitId) {
+    return { success: false, errorMessage: 'Hotel unit is required', MultiIdinties: null }
+  }
+
+  const unitCols = buildUnitAssignmentUnitColumnsValues({
+    unitAssignmentId: assignmentId,
+    hotelUnitId,
+    unitAddFeatureId: Number(unit?.unitAddFeatureId) || 0,
+    personsCountPerUnit: Number(unit?.personsCountPerUnit) || 0,
+    fromDate: unit?.fromDate,
+    toDate: unit?.toDate,
+    unitPricePerNight: Number(unit?.unitPricePerNight) || 0,
+    totalNightsCount: Number(unit?.totalNightsCount) || 0,
+    totalPricce: Number(unit?.totalPricce) || 0,
+  })
+
+  const normalizedPersons = (Array.isArray(persons) ? persons : [])
+    .map((p) => normalizeUnitAssignmentPerson(p))
+    .filter(Boolean)
+
+  const personCols = normalizedPersons.map((p) =>
+    buildUnitAssignmentPersonColumnsValues({
+      unitAssignmentUnitsId: 0,
+      customerName: p.customerName,
+      idType: p.idType,
+      idNum: p.idNum,
+      nationalityId: p.nationalityId,
+      birthDate: p.birthDate,
+      genderId: p.genderId,
+      job: p.job,
+    })
+  )
+
+  const multiTableName = joinMultiSegments([
+    UNIT_ASSIGNMENT_UNITS_TABLE_NAME,
+    ...personCols.map(() => UNIT_ASSIGNMENT_PERSONS_TABLE_NAME),
+  ])
+  const multiColumnsValues = joinMultiSegments([unitCols, ...personCols])
+
+  console.group('[Allocation][UnitAssignment][RowMulti] Request')
+  console.log('UnitAssignment_Id:', assignmentId)
+  console.log('Unit payload:', unit)
+  console.log('Persons payload:', normalizedPersons)
+  console.log('MultiTableName:', multiTableName)
+  console.log('MultiColumnsValues:', multiColumnsValues)
+  console.groupEnd()
+
+  const res = await DoMultiTransaction(multiTableName, multiColumnsValues, wantedAction)
+  return {
+    ...res,
+    unitAssignmentUnitId: parseFirstMultiId(res?.MultiIdinties),
+  }
 }
 
 function buildReservationUnitColumnsValues({
