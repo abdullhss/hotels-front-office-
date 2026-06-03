@@ -1,5 +1,5 @@
 import { DoTransaction, executeProcedure } from '../services/apiServices'
-import { EMPLOYEE_HOTEL_ID } from './GetEmployees.js'
+import { getAuthHotelId, resolveHotelId } from '../utils/authStorage.js'
 
 const GET_HOTEL_SECTION_PROCEDURE = 'VIlduaKaE0vwmEySXFdvMF1wxBx4LhVoxJOcW/7DAf8='
 
@@ -11,7 +11,7 @@ export function normalizeHotelSectionRow(raw) {
   const nameEnRaw = raw.SectionNameE ?? raw.sectionNameE ?? ''
   return {
     id: Number(raw.Id ?? raw.id ?? 0),
-    hotelId: Number(raw.Hotel_Id ?? raw.hotel_Id ?? EMPLOYEE_HOTEL_ID),
+    hotelId: Number(raw.Hotel_Id ?? raw.hotel_Id ?? getAuthHotelId()),
     nameAr: raw.SectionNameA ?? raw.sectionNameA ?? '',
     nameEn: String(nameEnRaw).trim() ? String(nameEnRaw).toUpperCase() : '',
     managerId: Number(raw.Manager_Id ?? raw.manager_Id ?? 0),
@@ -73,7 +73,7 @@ function parseHotelSectionListPayload(payload) {
  */
 export const fetchHotelSectionsPage = async (sectionIdFilter, hotelId, searchText, startNum, count) => {
   try {
-    const hid = Number(hotelId) || EMPLOYEE_HOTEL_ID
+    const hid = resolveHotelId(hotelId)
     const sid = Number(sectionIdFilter)
     const idParam = Number.isFinite(sid) ? sid : -1
     const params = `${idParam}#${hid}#${searchText ?? ''}#${startNum}#${count}`
@@ -91,7 +91,7 @@ export const fetchHotelSectionsPage = async (sectionIdFilter, hotelId, searchTex
 
 export const saveHotelSection = async ({
   id = 0,
-  hotelId = EMPLOYEE_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   sectionNameA = '',
   sectionNameE = '',
   managerId = 0,
@@ -100,7 +100,7 @@ export const saveHotelSection = async ({
 }) => {
   const columnsValues = [
     Number(id) || 0,
-    Number(hotelId) || EMPLOYEE_HOTEL_ID,
+    resolveHotelId(hotelId),
     sectionNameA.trim(),
     sectionNameE.trim().toUpperCase(),
     Number(managerId) || 0,

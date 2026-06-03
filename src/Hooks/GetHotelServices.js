@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { DoTransaction, executeProcedure } from '../services/apiServices'
-import { HOTEL_PAGE_HOTEL_ID } from './GetHotelData.js'
+import { getAuthHotelId, resolveHotelId } from '../utils/authStorage.js'
 
 const GET_HOTEL_SERVICE_PROCEDURE = 'VIlduaKaE0vwmEySXFdvMK1KDrBXgrO6YGOzFDM6Y0Q='
 const HOTEL_SERVICE_TABLE_NAME = 'TB/BX4vGh+T7SAUYVXssKQ=='
@@ -100,14 +100,14 @@ function parseHotelServiceListPayload(payload) {
  * GetHotelService — ParametersValues: id#Hotel_id#value#StartNum#Count
  */
 export const fetchHotelServicesPage = async ({
-  hotelId = HOTEL_PAGE_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   id = -1,
   value = '',
   startNum = 1,
   count = 2000,
 } = {}) => {
   try {
-    const hid = Number(hotelId) || HOTEL_PAGE_HOTEL_ID
+    const hid = resolveHotelId(hotelId)
     const sid = Number(id)
     const nid = Number.isFinite(sid) ? sid : -1
     const start = Number(startNum) || 1
@@ -163,7 +163,7 @@ export const deleteHotelService = async (serviceId) => {
  * Loads hotel services for the current hotel (same hotel id as hotel data page).
  */
 const useHotelServices = (
-  hotelId = HOTEL_PAGE_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   id = -1,
   value = '',
   startNum = 1,

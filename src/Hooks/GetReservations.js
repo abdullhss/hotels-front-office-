@@ -1,6 +1,6 @@
 import { DoMultiTransaction, DoTransaction, executeProcedure } from '../services/apiServices'
 import { isDoTransactionSuccess } from './GetAgents.js'
-import { EMPLOYEE_HOTEL_ID } from './GetEmployees.js'
+import { getAuthHotelId, resolveHotelId } from '../utils/authStorage.js'
 import { saveCustomerFromForm } from './GetCustomers.js'
 import {
   compareIsoDates,
@@ -8,8 +8,6 @@ import {
   isArrivalBeforeDeparture,
   toInputDateValue,
 } from '../pages/new-booking/dateUtils.js'
-
-export const RESERVATION_HOTEL_ID = EMPLOYEE_HOTEL_ID
 
 const LIST_RESERVATIONS_PROCEDURE = 'FJlxEMmpZTAV9nftZApHGnsiDJk+FL4DKOBOXxJf0p4='
 const GET_RESERVATION_DETAILS_PROCEDURE = 'FJlxEMmpZTAV9nftZApHGgvcdAIR6Vkt10kBcufW0js='
@@ -134,13 +132,13 @@ export function normalizeReservationRow(raw) {
 /**
  * Hotel_GetReservationDetails — hotel_id#Reservation_id#encrypt
  */
-export async function getReservationDetails(reservationId, hotelId = RESERVATION_HOTEL_ID) {
+export async function getReservationDetails(reservationId, hotelId = getAuthHotelId()) {
   const id = Number(reservationId) || 0
   if (!id) {
     return { success: false, reservation: null, error: 'Invalid reservation id' }
   }
 
-  const hid = Number(hotelId) || RESERVATION_HOTEL_ID
+  const hid = resolveHotelId(hotelId)
   const params = `${hid}#${id}#$????`
 
   try {
@@ -279,11 +277,11 @@ export async function getAvailableRoomsForReservationUnit({
   unitNameId,
   fromDate,
   toDate,
-  hotelId = RESERVATION_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   startNum = 1,
   count = 200,
 } = {}) {
-  const hid = Number(hotelId) || RESERVATION_HOTEL_ID
+  const hid = resolveHotelId(hotelId)
   const rid = Number(reservationId) || 0
   const uid = Number(id ?? unitNameId) || 0
   const fromIso = toInputDateValue(fromDate)
@@ -672,10 +670,10 @@ export function mapReservationToAllocationArrival(
  * Hotel_SearchForReservation — hotel_id#value#encrypt
  */
 export async function searchReservationsForAllocation({
-  hotelId = RESERVATION_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   searchText = '',
 } = {}) {
-  const hid = Number(hotelId) || RESERVATION_HOTEL_ID
+  const hid = resolveHotelId(hotelId)
   const value = String(searchText ?? '').trim()
   const params = `${hid}#${value}#$????`
 
@@ -756,13 +754,13 @@ export function mapReservationToTableRow(row, isArabic, currencyLabel = 'د.ل.'
  * Date: "" when not filtering by date; otherwise dd / mm / yyyy
  */
 export async function fetchReservationsPage({
-  hotelId = RESERVATION_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   searchText = '',
   date = '',
   startNum = 1,
   count = 50,
 } = {}) {
-  const hid = Number(hotelId) || RESERVATION_HOTEL_ID
+  const hid = resolveHotelId(hotelId)
   const value = String(searchText ?? '').trim()
   const dateParam = String(date ?? '').trim()
   const start = Math.max(1, Number(startNum) || 1)
@@ -958,7 +956,7 @@ export function validateReservationBooking(
 
 function buildReservationColumnsValues({
   id = 0,
-  hotelId = RESERVATION_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   reservationNum = '',
   reservationDate = '',
   reservationTypeId = 0,
@@ -980,7 +978,7 @@ function buildReservationColumnsValues({
 } = {}) {
   return [
     Number(id) || 0,
-    Number(hotelId) || RESERVATION_HOTEL_ID,
+    resolveHotelId(hotelId),
     String(reservationNum ?? '').trim(),
     String(reservationDate ?? '').trim(),
     Number(reservationTypeId) || 0,
@@ -1052,7 +1050,7 @@ export function parseDoTransactionNewId(newIdValue) {
 
 export const saveReservation = async ({
   id = 0,
-  hotelId = RESERVATION_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   reservationNum = '',
   reservationDate = '',
   reservationTypeId = 0,
@@ -1106,7 +1104,7 @@ export const saveReservation = async ({
 
 function buildUnitAssignmentColumnsValues({
   id = 0,
-  hotelId = RESERVATION_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   assignmentNum = '',
   assignDate = '',
   assignType = 0,
@@ -1127,7 +1125,7 @@ function buildUnitAssignmentColumnsValues({
 }) {
   return [
     Number(id) || 0,
-    Number(hotelId) || RESERVATION_HOTEL_ID,
+    resolveHotelId(hotelId),
     normalizeAssignmentNum(assignmentNum),
     formatApiDateDdMmYyyy(assignDate),
     Number(assignType) || 0,
@@ -1150,7 +1148,7 @@ function buildUnitAssignmentColumnsValues({
 
 export const saveUnitAssignmentHeader = async ({
   id = 0,
-  hotelId = RESERVATION_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   assignmentNum = '',
   assignDate = '',
   assignType = 0,
@@ -1376,7 +1374,7 @@ function buildReservationUnitColumnsValues({
   totalPrice = 0,
   fromDate = '',
   toDate = '',
-  hotelId = RESERVATION_HOTEL_ID,
+  hotelId = getAuthHotelId(),
 }) {
   return [
     Number(id) || 0,
@@ -1390,7 +1388,7 @@ function buildReservationUnitColumnsValues({
     Number(totalPrice) || 0,
     String(fromDate ?? '').trim(),
     String(toDate ?? '').trim(),
-    Number(hotelId) || RESERVATION_HOTEL_ID,
+    resolveHotelId(hotelId),
   ].join('#')
 }
 
@@ -1416,7 +1414,7 @@ function stayRowToUnitColumnsValues(row, reservationId) {
     totalPrice: Number(row?.total) || 0,
     fromDate: formatDisplayDate(toInputDateValue(row?.arrivalDate)),
     toDate: formatDisplayDate(toInputDateValue(row?.departureDate)),
-    hotelId: RESERVATION_HOTEL_ID,
+    hotelId: getAuthHotelId(),
   })
 }
 
@@ -1514,7 +1512,7 @@ export const saveReservationUnit = async ({
   totalPrice = 0,
   fromDate = '',
   toDate = '',
-  hotelId = RESERVATION_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   wantedAction = 0,
 }) => {
   const multiTableName = joinMultiSegments([RESERVATION_UNIT_TABLE_NAME])
@@ -1607,7 +1605,7 @@ export async function saveReservationFromBooking({
 
   const multiRes = await saveReservationBookingMulti({
     reservation: {
-      hotelId: RESERVATION_HOTEL_ID,
+      hotelId: getAuthHotelId(),
       reservationNum: form.bookingNumber,
       reservationDate: formatDisplayDate(toInputDateValue(form.bookingDate)),
       reservationTypeId: Number(form.reservationTypeId) || 0,

@@ -13,7 +13,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '../../lib/utils.js'
-import { EMPLOYEE_HOTEL_ID } from '../../Hooks/GetEmployees.js'
+import { getAuthHotelId } from '../../utils/authStorage.js'
 import useExtraFeatures from '../../Hooks/GetExtraFeatures.js'
 import {
   ROOMS_PAGE_SIZE,
@@ -99,7 +99,7 @@ function UnitsPage() {
   const loadStats = useCallback(async () => {
     try {
       const statsResult = await fetchRoomsStatusStats({
-        hotelId: EMPLOYEE_HOTEL_ID,
+        hotelId: getAuthHotelId(),
         unitNameId: appliedFilters.unitNameId,
         floorNum: appliedFilters.floorNum,
       })
@@ -119,7 +119,7 @@ function UnitsPage() {
     setLoading(true)
     try {
       const pageResult = await fetchRoomsStatus({
-        hotelId: EMPLOYEE_HOTEL_ID,
+        hotelId: getAuthHotelId(),
         unitNameId: appliedFilters.unitNameId,
         floorNum: appliedFilters.floorNum,
         page,

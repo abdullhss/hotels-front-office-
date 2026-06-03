@@ -1,5 +1,5 @@
 import { DoTransaction, executeProcedure } from '../services/apiServices'
-import { EMPLOYEE_HOTEL_ID } from './GetEmployees.js'
+import { getAuthHotelId, resolveHotelId } from '../utils/authStorage.js'
 
 const GET_GROUP_PERMISSION_DETAILS_PROCEDURE = 'rek2ydFmPKA2UVKCFHRxXwXAWiCRjiJsMw26Iz1jfJo='
 const GET_HOTEL_GROUP_PROCEDURE = 'EHxewRDc1hdah34/BYd88H8JoIa0Dd0JEVG/Co1BAx8='
@@ -100,9 +100,9 @@ function parseHotelGroupListPayload(payload) {
  * ProcedureName: rek2ydFmPKA2UVKCFHRxXwXAWiCRjiJsMw26Iz1jfJo=
  * ParametersValues: group_Id#Hotel_id
  */
-export async function fetchGroupPermissionDetails(groupId, hotelId = EMPLOYEE_HOTEL_ID) {
+export async function fetchGroupPermissionDetails(groupId, hotelId = getAuthHotelId()) {
   const gid = Number(groupId)
-  const hid = Number(hotelId) || EMPLOYEE_HOTEL_ID
+  const hid = resolveHotelId(hotelId)
   const idParam = Number.isFinite(gid) ? gid : 0
   const params = `${idParam}#${hid}`
 
@@ -135,8 +135,8 @@ export async function fetchGroupPermissionDetails(groupId, hotelId = EMPLOYEE_HO
  * Attempts to load all permission groups by calling details proc with group_Id = -1.
  * Falls back to empty list if backend does not support list mode.
  */
-export async function fetchPermissionGroups(hotelId = EMPLOYEE_HOTEL_ID) {
-  const hid = Number(hotelId) || EMPLOYEE_HOTEL_ID
+export async function fetchPermissionGroups(hotelId = getAuthHotelId()) {
+  const hid = resolveHotelId(hotelId)
   const params = `-1#${hid}#-1#1#1000`
 
   try {
@@ -155,7 +155,7 @@ export async function fetchPermissionGroups(hotelId = EMPLOYEE_HOTEL_ID) {
 
 export async function savePermissionGroup({
   id = 0,
-  hotelId = EMPLOYEE_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   hotelRoleId = 0,
   nameAr = '',
   nameEn = '',
@@ -163,7 +163,7 @@ export async function savePermissionGroup({
   wantedAction = 0,
 }) {
   const normalizedId = Number(id) || 0
-  const normalizedHotelId = Number(hotelId) || EMPLOYEE_HOTEL_ID
+  const normalizedHotelId = resolveHotelId(hotelId)
   const normalizedRoleId = Number(hotelRoleId) || 0
   const activeValue = isActive ? 'True' : 'False'
   const columnsValues = `${normalizedId}#${normalizedHotelId}#${normalizedRoleId}#${String(nameAr)

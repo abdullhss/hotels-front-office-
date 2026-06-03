@@ -1,6 +1,6 @@
 import { executeProcedure } from '../services/apiServices'
 import { formatDisplayDate, toInputDateValue } from '../pages/new-booking/dateUtils.js'
-import { EMPLOYEE_HOTEL_ID } from './GetEmployees'
+import { getAuthHotelId } from '../utils/authStorage.js'
 import { normalizeFloorNumParam } from './GetMonthlyRoomsReport.js'
 
 export const GET_ROOMS_STATUS_PROCEDURE = 'BRfc788n7ATIJwBjRuCVi2ipmPuHI2Mio9O7Im+c1I4='
@@ -157,13 +157,13 @@ function parseRoomsPayload(payload) {
 }
 
 export function buildRoomsStatusParams({
-  hotelId = EMPLOYEE_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   unitNameId = -1,
   floorNum = -1,
   startNum = 1,
   count = ROOMS_PAGE_SIZE,
 } = {}) {
-  const safeHotelId = Math.max(1, toIntOrDefault(hotelId, EMPLOYEE_HOTEL_ID))
+  const safeHotelId = Math.max(1, toIntOrDefault(hotelId, getAuthHotelId()))
   const safeUnitNameId = toIntOrDefault(unitNameId, -1)
   const safeFloorNum =
     typeof floorNum === 'string' ? normalizeFloorNumParam(floorNum) : toIntOrDefault(floorNum, -1)
@@ -174,7 +174,7 @@ export function buildRoomsStatusParams({
 }
 
 export async function fetchRoomsStatus({
-  hotelId = EMPLOYEE_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   unitNameId = -1,
   floorNum = -1,
   page = 1,
@@ -239,7 +239,7 @@ export function computeRoomsStatusStats(rooms = []) {
 
 /** Load up to STATS_FETCH_CAP rooms (same filters) to compute summary cards. */
 export async function fetchRoomsStatusStats({
-  hotelId = EMPLOYEE_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   unitNameId = -1,
   floorNum = -1,
 } = {}) {

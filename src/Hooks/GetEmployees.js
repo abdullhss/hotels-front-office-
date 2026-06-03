@@ -1,7 +1,5 @@
 import { DoTransaction, executeProcedure } from '../services/apiServices'
-
-/** Fixed hotel scope for this integration */
-export const EMPLOYEE_HOTEL_ID = 1
+import { getAuthHotelId, resolveHotelId } from '../utils/authStorage.js'
 
 const GET_EMPLOYEE_PROCEDURE = 'kWPTO4yA1SqfGAmtpqSvMiAbPz+cnwJFTJMWIqPD6Ec='
 const GET_EMPLOYEE_DETAILS_PROCEDURE = 'kWPTO4yA1SqfGAmtpqSvMg4XtzgX8Qhf8984tAUVIKk='
@@ -24,7 +22,7 @@ export function normalizeEmployeeRow(raw) {
   const nameEnRaw = raw.EmployeeNameE ?? raw.employeeNameE ?? ''
   return {
     id: Number(raw.Id ?? raw.id ?? 0),
-    hotelId: Number(raw.Hotel_Id ?? raw.hotel_Id ?? EMPLOYEE_HOTEL_ID),
+    hotelId: Number(raw.Hotel_Id ?? raw.hotel_Id ?? getAuthHotelId()),
     nameAr: raw.EmployeeNameA ?? raw.employeeNameA ?? '',
     nameEn: String(nameEnRaw).trim() ? String(nameEnRaw).toUpperCase() : '',
     hotelSectionId: Number(raw.HotelSection_Id ?? raw.hotelSection_Id ?? 0),
@@ -109,7 +107,7 @@ export const fetchEmployeesPage = async (
   count
 ) => {
   try {
-    const h = Number(hotelId) || EMPLOYEE_HOTEL_ID
+    const h = resolveHotelId(hotelId)
     const secRaw = Number(hotelSectionId)
     const sec = Number.isFinite(secRaw) ? secRaw : -1
     const natRaw = Number(nationalityId)
@@ -171,7 +169,7 @@ function parseEmployeeDetailObject(payload, requestedId) {
  * hotel_id#Employee_id#value#encrypt
  */
 export const getEmployeeDetails = async (hotelId, employeeId, value = '') => {
-  const hid = Number(hotelId) || EMPLOYEE_HOTEL_ID
+  const hid = resolveHotelId(hotelId)
   const eid = Number(employeeId) || 0
   if (!eid) return { success: false, employee: null, error: 'Invalid employee id' }
 
@@ -195,7 +193,7 @@ const boolStr = (v) => (v ? 'True' : 'False')
 
 export const saveEmployee = async ({
   id = 0,
-  hotelId = EMPLOYEE_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   employeeNameA = '',
   employeeNameE = '',
   hotelSectionId = 0,
@@ -219,7 +217,7 @@ export const saveEmployee = async ({
 }) => {
   const columnsValues = [
     Number(id) || 0,
-    Number(hotelId) || EMPLOYEE_HOTEL_ID,
+    resolveHotelId(hotelId),
     employeeNameA.trim(),
     employeeNameE.trim().toUpperCase(),
     Number(hotelSectionId) || 0,

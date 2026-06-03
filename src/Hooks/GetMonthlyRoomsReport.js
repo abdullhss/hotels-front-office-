@@ -1,6 +1,6 @@
 import { toInputDateValue } from '../pages/new-booking/dateUtils.js'
 import { executeProcedure } from '../services/apiServices'
-import { EMPLOYEE_HOTEL_ID } from './GetEmployees'
+import { getAuthHotelId } from '../utils/authStorage.js'
 
 const MONTHLY_ROOMS_REPORT_PROCEDURE = 'HnC0WnzS1va393I8ZCldm+gEkklCHaWNaeE4dOUCJpc='
 
@@ -77,14 +77,14 @@ function normalizeMonthlyPayload(payload) {
 }
 
 export function buildMonthlyRoomsReportParams({
-  hotelId = EMPLOYEE_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   year,
   month,
   unitNameId = -1,
   floorNum = -1,
   featureId = -1,
 } = {}) {
-  const safeHotelId = Math.max(1, toIntOrDefault(hotelId, EMPLOYEE_HOTEL_ID))
+  const safeHotelId = Math.max(1, toIntOrDefault(hotelId, getAuthHotelId()))
   const safeYear = Math.max(2000, toIntOrDefault(year, new Date().getFullYear()))
   const safeMonth = Math.min(12, Math.max(1, toIntOrDefault(month, new Date().getMonth() + 1)))
   const safeUnitNameId = toIntOrDefault(unitNameId, -1)
@@ -95,7 +95,7 @@ export function buildMonthlyRoomsReportParams({
 }
 
 export async function fetchMonthlyRoomsReport({
-  hotelId = EMPLOYEE_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   year,
   month,
   unitNameId = -1,

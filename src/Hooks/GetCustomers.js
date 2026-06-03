@@ -2,9 +2,7 @@ import { useEffect, useState } from 'react'
 import { DoTransaction, executeProcedure } from '../services/apiServices'
 import { HandelFile } from '../services/HandelFile.js'
 import { isDoTransactionSuccess } from './GetAgents.js'
-import { EMPLOYEE_HOTEL_ID } from './GetEmployees.js'
-
-export const CUSTOMER_HOTEL_ID = EMPLOYEE_HOTEL_ID
+import { getAuthHotelId, resolveHotelId } from '../utils/authStorage.js'
 
 const GET_CUSTOMERS_PROCEDURE = 'ihIfdD5vRL7vZUbbCCBxKAsRdZJZBB0hf3V7Gd52SJ0='
 
@@ -141,7 +139,7 @@ export function normalizeCustomerRow(raw) {
 
   return {
     id: Number(raw.Id ?? raw.id ?? 0),
-    hotelId: Number(raw.Hotel_Id ?? raw.hotel_Id ?? CUSTOMER_HOTEL_ID),
+    hotelId: Number(raw.Hotel_Id ?? raw.hotel_Id ?? getAuthHotelId()),
     nameAr: raw.CustomerNameA ?? raw.customerNameA ?? '',
     nameEn: String(nameEnRaw).trim() ? String(nameEnRaw).toUpperCase() : '',
     email: raw.Email ?? raw.email ?? '',
@@ -236,7 +234,7 @@ function parseCustomerListPayload(payload) {
  */
 export const fetchCustomersPage = async ({
   id = -1,
-  hotelId = CUSTOMER_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   nationalityId = -1,
   genderId = -1,
   searchText = '',
@@ -246,7 +244,7 @@ export const fetchCustomersPage = async ({
   try {
     const cid = Number(id)
     const normalizedId = Number.isFinite(cid) ? cid : -1
-    const hid = Number(hotelId) || CUSTOMER_HOTEL_ID
+    const hid = resolveHotelId(hotelId)
     const natRaw = Number(nationalityId)
     const nat = Number.isFinite(natRaw) ? natRaw : -1
     const genRaw = Number(genderId)
@@ -340,7 +338,7 @@ export async function uploadCustomerIdFile(file) {
 
 export const saveCustomer = async ({
   id = 0,
-  hotelId = CUSTOMER_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   customerNameA = '',
   customerNameE = '',
   email = '',
@@ -369,7 +367,7 @@ export const saveCustomer = async ({
 
   const columnsValues = [
     Number(id) || 0,
-    Number(hotelId) || CUSTOMER_HOTEL_ID,
+    resolveHotelId(hotelId),
     String(customerNameA ?? '').trim(),
     String(customerNameE ?? '').trim().toUpperCase(),
     String(email ?? '').trim(),

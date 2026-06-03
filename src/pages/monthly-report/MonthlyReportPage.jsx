@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight, LoaderCircle, Plus } from 'lucide-react'
 import { toast } from 'sonner'
-import { EMPLOYEE_HOTEL_ID } from '../../Hooks/GetEmployees'
+import { getAuthHotelId } from '../../utils/authStorage.js'
 import useExtraFeatures from '../../Hooks/GetExtraFeatures'
 import { fetchMonthlyRoomsReport, normalizeFloorNumParam } from '../../Hooks/GetMonthlyRoomsReport'
 import { toInputDateValue } from '../new-booking/dateUtils.js'
@@ -99,7 +99,7 @@ function MonthlyReportPage() {
     setLoading(true)
     try {
       const result = await fetchMonthlyRoomsReport({
-        hotelId: EMPLOYEE_HOTEL_ID,
+        hotelId: getAuthHotelId(),
         year: selectedYear,
         month: selectedMonth + 1,
         unitNameId,

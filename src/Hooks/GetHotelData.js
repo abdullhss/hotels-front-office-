@@ -1,7 +1,7 @@
 import { DoTransaction, executeProcedure } from '../services/apiServices'
 import { HandelFile } from '../services/HandelFile.js'
 import { isDoTransactionSuccess } from './GetAgents.js'
-import { EMPLOYEE_HOTEL_ID } from './GetEmployees.js'
+import { getAuthHotelId, resolveHotelId } from '../utils/authStorage.js'
 
 function isHandelUploadOk(res) {
   if (!res) return false
@@ -16,8 +16,6 @@ function isHandelUploadOk(res) {
 }
 
 /** Default hotel for `/hotels` integration */
-export const HOTEL_PAGE_HOTEL_ID = EMPLOYEE_HOTEL_ID
-
 const GET_HOTEL_DETAILS_PROCEDURE = '4DRAEi6rPpD2jIUjBd5oyMjt8IBXQBLuV9tIaKP5oPU='
 const GET_HOTEL_FEATURES_PROCEDURE = 'KzoGCaafC5QP7ldZN9RZrr4uTYL6DBoOIjMRfhJWxaU='
 
@@ -77,7 +75,7 @@ export function parseHotelFeatureText(feature) {
 export function normalizeHotelFeatureRow(raw) {
   if (!raw || typeof raw !== 'object') return null
   const id = Number(raw.Id ?? raw.id ?? 0)
-  const hotelId = Number(raw.Hotel_Id ?? raw.hotel_Id ?? HOTEL_PAGE_HOTEL_ID)
+  const hotelId = Number(raw.Hotel_Id ?? raw.hotel_Id ?? getAuthHotelId())
   const featureRaw = raw.Feature ?? raw.feature ?? ''
   const { nameAr, nameEn } = parseHotelFeatureText(featureRaw)
   const iconKey = FEATURE_ICON_KEYS[Math.abs(id) % FEATURE_ICON_KEYS.length]
@@ -89,7 +87,7 @@ function normalizeHotelImageRow(raw) {
   const directUrl = firstNonEmpty(raw, ['HotelImage', 'hotelImage', 'ImageUrl', 'imageUrl', 'Url', 'url'])
   return {
     id: Number(raw.Id ?? raw.id ?? 0),
-    hotelId: Number(raw.Hotel_Id ?? raw.hotel_Id ?? HOTEL_PAGE_HOTEL_ID),
+    hotelId: Number(raw.Hotel_Id ?? raw.hotel_Id ?? getAuthHotelId()),
     imageId: raw.ImageId != null ? String(raw.ImageId) : String(raw.imageId ?? ''),
     descAr: raw.ImageDescA ?? raw.imageDescA ?? '',
     descEn: raw.ImageDescE ?? raw.imageDescE ?? '',
@@ -184,7 +182,7 @@ function extractHotelFeaturesFromDetail(raw) {
  */
 function parseHotelsDataRow(root, hotelId) {
   if (!root || typeof root !== 'object') return null
-  const hid = Number(hotelId) || HOTEL_PAGE_HOTEL_ID
+  const hid = resolveHotelId(hotelId)
   const blob = root.HotelsData ?? root.hotelsData
   const parsed = parseJsonMaybe(blob)
   if (parsed == null) return null
@@ -226,7 +224,7 @@ export function normalizeHotelDetail(raw, rootPayload = {}) {
   const images = extractImageList(raw, rootPayload)
 
   return {
-    id: Number(raw.Id ?? raw.id ?? raw.Hotel_Id ?? raw.hotel_Id ?? HOTEL_PAGE_HOTEL_ID),
+    id: Number(raw.Id ?? raw.id ?? raw.Hotel_Id ?? raw.hotel_Id ?? getAuthHotelId()),
     nameAr,
     nameEn: nameEnRaw ? nameEnRaw.toUpperCase() : '',
     cityNameAr,
@@ -269,9 +267,9 @@ export function normalizeHotelDetail(raw, rootPayload = {}) {
 /**
  * GetHotelDetails — ParametersValues: hotel_id#encrypt (`$????` placeholder).
  */
-export const fetchHotelDetails = async (hotelId = HOTEL_PAGE_HOTEL_ID) => {
+export const fetchHotelDetails = async (hotelId = getAuthHotelId()) => {
   try {
-    const hid = Number(hotelId) || HOTEL_PAGE_HOTEL_ID
+    const hid = resolveHotelId(hotelId)
     const params = `${hid}#$????`
     const response = await executeProcedure(GET_HOTEL_DETAILS_PROCEDURE, params)
     if (!response?.success) {
@@ -309,12 +307,12 @@ export const fetchHotelDetails = async (hotelId = HOTEL_PAGE_HOTEL_ID) => {
  * GetHotelFeatures — ParametersValues: Hotel_id#StartNum#Count
  */
 export const fetchHotelFeaturesPage = async (
-  hotelId = HOTEL_PAGE_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   startNum = 0,
   count = 500
 ) => {
   try {
-    const hid = Number(hotelId) || HOTEL_PAGE_HOTEL_ID
+    const hid = resolveHotelId(hotelId)
     const start = Number(startNum) || 0
     const cnt = Number(count) || 500
     const params = `${hid}#${start}#${cnt}`
@@ -332,12 +330,12 @@ export const fetchHotelFeaturesPage = async (
 
 export const saveHotelFeature = async ({
   id = 0,
-  hotelId = HOTEL_PAGE_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   nameAr = '',
   nameEn = '',
   wantedAction = 0,
 }) => {
-  const hid = Number(hotelId) || HOTEL_PAGE_HOTEL_ID
+  const hid = resolveHotelId(hotelId)
   const featurePayload = `${String(nameAr).trim()}|||${String(nameEn).trim().toUpperCase()}`
   const columnsValues = [Number(id) || 0, hid, featurePayload].join('#')
 
@@ -359,13 +357,13 @@ export const deleteHotelFeature = async (featureId) => {
 
 export const saveHotelImage = async ({
   id = 0,
-  hotelId = HOTEL_PAGE_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   imageId = '',
   imageDescA = '',
   imageDescE = '',
   wantedAction = 0,
 }) => {
-  const hid = Number(hotelId) || HOTEL_PAGE_HOTEL_ID
+  const hid = resolveHotelId(hotelId)
   const columnsValues = [
     Number(id) || 0,
     hid,
@@ -396,7 +394,7 @@ export const deleteHotelImage = async (imageRowId) => {
  */
 export async function uploadAndSaveHotelImage({
   file,
-  hotelId = HOTEL_PAGE_HOTEL_ID,
+  hotelId = getAuthHotelId(),
   imageDescA = '',
   imageDescE = '',
 }) {
@@ -405,7 +403,7 @@ export async function uploadAndSaveHotelImage({
   }
 
   const hf = new HandelFile()
-  const hid = Number(hotelId) || HOTEL_PAGE_HOTEL_ID
+  const hid = resolveHotelId(hotelId)
 
   const uploadRes = await hf.UploadFileWebSite({
     action: 'Add',
