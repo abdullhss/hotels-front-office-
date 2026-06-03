@@ -48,6 +48,12 @@ function parseFeatureIds(raw) {
     .filter((id) => Number.isFinite(id) && id > 0)
 }
 
+function parseAssignmentNum(raw) {
+  const value = raw?.AssignmentNum ?? raw?.assignmentNum ?? ''
+  const text = String(value ?? '').trim().replace(/^#+/, '')
+  return text
+}
+
 function formatTransferTime(value) {
   const raw = String(value ?? '').trim()
   if (!raw) return ''
@@ -67,14 +73,13 @@ export function normalizeAssignment(raw) {
   const featureNameEn = String(raw.FreatureNameE ?? raw.FeatureNameE ?? raw.featureNameE ?? '').trim()
   const fromDateIso = toInputDateValue(raw.FromDate ?? raw.fromDate)
   const toDateIso = toInputDateValue(raw.ToDate ?? raw.toDate)
-  const reservationId = toIntOrDefault(raw.Reservation_Id ?? raw.reservation_Id, 0)
-
   if (!customerNameAr && !customerNameEn && !featureNameAr && !featureNameEn && !fromDateIso) {
     return null
   }
 
   return {
-    reservationId,
+    assignmentNum: parseAssignmentNum(raw),
+    reservationId: toIntOrDefault(raw.Reservation_Id ?? raw.reservation_Id, 0),
     customerId: toIntOrDefault(raw.Customer_Id ?? raw.customer_Id, 0),
     customerNameAr,
     customerNameEn,
@@ -121,6 +126,7 @@ export function normalizeRoomStatusRow(raw, index = 0) {
     statusKey,
     featureIds: parseFeatureIds(raw),
     reservationId,
+    assignmentNum: parseAssignmentNum(raw),
     customerId,
     customerNameAr: String(raw.CustomerNameA ?? raw.customerNameA ?? '').trim(),
     customerNameEn: String(raw.CustomerNameE ?? raw.customerNameE ?? '').trim(),

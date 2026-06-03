@@ -40,9 +40,9 @@ function AssignmentRow({ item, isArabic }) {
               </span>
             </p>
           ) : null}
-          {item.reservationId > 0 ? (
+          {item.assignmentNum ? (
             <p className="mt-1.5 text-[11px] text-[#9ca3af]">
-              {t('unitsPage.assignments.reservation', { id: item.reservationId })}
+              {t('unitsPage.assignments.assignmentNum', { num: item.assignmentNum })}
             </p>
           ) : null}
         </div>
@@ -58,7 +58,7 @@ function UnitAssignmentsPreview({ unit, className }) {
   const assignments = unit.assignments ?? []
   const fallbackGuest = pickLabel(isArabic, unit.customerNameAr, unit.customerNameEn)
   const hasFallback =
-    fallbackGuest || unit.fromDateLabel || unit.toDateLabel || unit.reservationId > 0
+    fallbackGuest || unit.fromDateLabel || unit.toDateLabel || unit.assignmentNum
 
   const items =
     assignments.length > 0
@@ -74,6 +74,7 @@ function UnitAssignmentsPreview({ unit, className }) {
               toDateLabel: unit.toDateLabel,
               fromDateIso: unit.fromDateIso,
               toDateIso: unit.toDateIso,
+              assignmentNum: unit.assignmentNum ?? '',
               reservationId: unit.reservationId ?? 0,
             },
           ]
@@ -99,7 +100,7 @@ function UnitAssignmentsPreview({ unit, className }) {
       <ul className="m-0 list-none space-y-2 p-0">
         {items.map((item, idx) => (
           <AssignmentRow
-            key={`${item.reservationId}-${item.customerId}-${item.featureId}-${idx}`}
+            key={`${item.assignmentNum}-${item.reservationId}-${item.customerId}-${item.featureId}-${idx}`}
             item={item}
             isArabic={isArabic}
           />

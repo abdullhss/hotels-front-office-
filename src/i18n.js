@@ -370,7 +370,7 @@ const resources = {
         assignments: {
           title: 'تفاصيل الإشغال',
           unknownGuest: 'ضيف',
-          reservation: 'حجز #{{id}}',
+          assignmentNum: 'تسكين #{{num}}',
         },
         empty: 'لا توجد وحدات مطابقة للفلتر',
         stats: {
@@ -802,7 +802,7 @@ const resources = {
         assignments: {
           title: 'Occupancy details',
           unknownGuest: 'Guest',
-          reservation: 'Reservation #{{id}}',
+          assignmentNum: 'Assignment #{{num}}',
         },
         empty: 'No units match the current filters',
         stats: {
