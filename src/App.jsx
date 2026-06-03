@@ -12,6 +12,7 @@ import AllocationCheckInPage from './pages/allocation/AllocationCheckInPage.jsx'
 import CustomersPage from './pages/customers/CustomersPage.jsx'
 import AddCustomerPage from './pages/customers/AddCustomerPage.jsx'
 import MonthlyReportPage from './pages/monthly-report/MonthlyReportPage.jsx'
+import UnitsPage from './pages/units/UnitsPage.jsx'
 
 function App() {
   const { i18n } = useTranslation()
@@ -37,7 +38,7 @@ function App() {
           <Route path="/bookings/new" element={guard(<NewBookingPage />)} />
           <Route path="/allocation" element={guard(<AllocationPage />)} />
           <Route path="/allocation/:bookingId/check-in" element={guard(<AllocationCheckInPage />)} />
-          <Route path="/units" element={guard(<DashboardPage />)} />
+          <Route path="/units" element={guard(<UnitsPage />)} />
           <Route path="/unit-transfer" element={guard(<DashboardPage />)} />
           <Route path="/check-out" element={guard(<DashboardPage />)} />
           <Route path="/monthly-report" element={guard(<MonthlyReportPage />)} />
