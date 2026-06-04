@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { User } from 'lucide-react'
+import { ArrowRightLeft, LogOut, User, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import CheckInGuestDataModal from './CheckInGuestDataModal.jsx'
+import RoomOperationsGuestsModal from '../../room-operations/components/RoomOperationsGuestsModal.jsx'
 import { getAvailableRoomsForReservationUnit } from '../../../Hooks/GetReservations.js'
 
 function CheckInRoomsTable({
@@ -13,7 +14,9 @@ function CheckInRoomsTable({
   onRowsDataChange,
   initialRoomNumbers = null,
   initialRoomGuests = null,
+  mode = 'allocation',
 }) {
+  const isRoomOperations = mode === 'room-operations'
   const { t } = useTranslation()
   const [roomNumbers, setRoomNumbers] = useState(() => {
     const defaults = Object.fromEntries(booking.rooms.map((room) => [room.id, '']))
@@ -21,6 +24,7 @@ function CheckInRoomsTable({
     return { ...defaults, ...initialRoomNumbers }
   })
   const [guestModalRoom, setGuestModalRoom] = useState(null)
+  const [viewGuestsRoom, setViewGuestsRoom] = useState(null)
   const [roomGuests, setRoomGuests] = useState(() => initialRoomGuests ?? {})
   const [availableRoomsByRow, setAvailableRoomsByRow] = useState({})
   const [loadingRows, setLoadingRows] = useState({})
@@ -28,6 +32,8 @@ function CheckInRoomsTable({
   const roomRows = useMemo(() => booking.rooms ?? [], [booking.rooms])
 
   useEffect(() => {
+    if (isRoomOperations) return undefined
+
     let ignore = false
 
     const loadRooms = async () => {
@@ -111,7 +117,7 @@ function CheckInRoomsTable({
     return () => {
       ignore = true
     }
-  }, [roomRows, reservationId, hotelId, t])
+  }, [roomRows, reservationId, hotelId, t, isRoomOperations])
 
   useEffect(() => {
     if (!initialRoomNumbers) return
@@ -207,12 +213,20 @@ function CheckInRoomsTable({
               <th className="px-3 py-3 text-start font-medium">
                 {t('allocation.checkInPage.price')}
               </th>
-              <th className="px-3 py-3 text-start font-medium">
-                {t('allocation.checkInPage.roomNumber')}
-              </th>
-              <th className="px-3 py-3 text-start font-medium">
-                {t('allocation.checkInPage.guestData')}
-              </th>
+              {isRoomOperations ? (
+                <th className="px-3 py-3 text-start font-medium">
+                  {t('roomOperations.roomsTable.actions')}
+                </th>
+              ) : (
+                <>
+                  <th className="px-3 py-3 text-start font-medium">
+                    {t('allocation.checkInPage.roomNumber')}
+                  </th>
+                  <th className="px-3 py-3 text-start font-medium">
+                    {t('allocation.checkInPage.guestData')}
+                  </th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -244,37 +258,83 @@ function CheckInRoomsTable({
                 <td className="px-3 py-4 font-semibold text-[#111827]">
                   {isArabic ? room.priceAr : room.priceEn}
                 </td>
-                <td className="px-3 py-4">
-                  <select
-                    value={roomNumbers[room.id] ?? ''}
-                    onChange={(e) =>
-                      setRoomNumbers((prev) => ({ ...prev, [room.id]: e.target.value }))
-                    }
-                    disabled={loadingRows[room.id] || !availableRoomsByRow[room.id]?.length}
-                    className="w-full min-w-[140px] appearance-none rounded-xl border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2 text-sm text-[#374151] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-primary disabled:opacity-60"
-                  >
-                    <option value="">
-                      {loadingRows[room.id]
-                        ? t('allocation.checkInPage.loadingAvailableRooms')
-                        : t('allocation.checkInPage.roomNumberPlaceholder')}
-                    </option>
-                    {(availableRoomsByRow[room.id] ?? []).map((availableRoom) => (
-                      <option key={availableRoom.id} value={availableRoom.id}>
-                        {availableRoom.unitNum}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className="px-3 py-4">
-                  <button
-                    type="button"
-                    onClick={() => setGuestModalRoom(room)}
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-primary"
-                  >
-                    <User className="h-4 w-4" />
-                    {t('allocation.checkInPage.enterGuestData')}
-                  </button>
-                </td>
+                {isRoomOperations ? (
+                  <td className="px-3 py-4">
+                    <div className="flex min-w-[220px] flex-col gap-2">
+                      {room.assignedUnitLabel ? (
+                        <p className="m-0 text-xs text-[#6b7280]">
+                          {t('roomOperations.roomsTable.currentRoom', {
+                            room: room.assignedUnitLabel,
+                          })}
+                        </p>
+                      ) : null}
+                      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            toast.info(t('roomOperations.roomsTable.changeRoomComingSoon'))
+                          }
+                          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-medium text-[#374151] transition-colors hover:border-brand-primary hover:text-brand-primary"
+                        >
+                          <ArrowRightLeft className="h-3.5 w-3.5 shrink-0" />
+                          {t('roomOperations.roomsTable.changeRoom')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            toast.info(t('roomOperations.roomsTable.checkoutComingSoon'))
+                          }
+                          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#fecaca] bg-[#fef2f2] px-3 py-2 text-xs font-medium text-[#dc2626] transition-colors hover:bg-[#fee2e2]"
+                        >
+                          <LogOut className="h-3.5 w-3.5 shrink-0" />
+                          {t('roomOperations.roomsTable.checkoutRoom')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setViewGuestsRoom(room)}
+                          className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-brand-primary-hover"
+                        >
+                          <Users className="h-3.5 w-3.5 shrink-0" />
+                          {t('roomOperations.roomsTable.viewGuests')}
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                ) : (
+                  <>
+                    <td className="px-3 py-4">
+                      <select
+                        value={roomNumbers[room.id] ?? ''}
+                        onChange={(e) =>
+                          setRoomNumbers((prev) => ({ ...prev, [room.id]: e.target.value }))
+                        }
+                        disabled={loadingRows[room.id] || !availableRoomsByRow[room.id]?.length}
+                        className="w-full min-w-[140px] appearance-none rounded-xl border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2 text-sm text-[#374151] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-primary disabled:opacity-60"
+                      >
+                        <option value="">
+                          {loadingRows[room.id]
+                            ? t('allocation.checkInPage.loadingAvailableRooms')
+                            : t('allocation.checkInPage.roomNumberPlaceholder')}
+                        </option>
+                        {(availableRoomsByRow[room.id] ?? []).map((availableRoom) => (
+                          <option key={availableRoom.id} value={availableRoom.id}>
+                            {availableRoom.unitNum}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-3 py-4">
+                      <button
+                        type="button"
+                        onClick={() => setGuestModalRoom(room)}
+                        className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-primary"
+                      >
+                        <User className="h-4 w-4" />
+                        {t('allocation.checkInPage.enterGuestData')}
+                      </button>
+                    </td>
+                  </>
+                )}
               </tr>
             ))}
           </tbody>
@@ -289,29 +349,45 @@ function CheckInRoomsTable({
               <td className="px-3 py-4 text-sm font-semibold text-[#059669]">
                 {isArabic ? booking.totalRoomsPriceAr : booking.totalRoomsPriceEn}
               </td>
-              <td colSpan={2} />
+              <td colSpan={isRoomOperations ? 1 : 2} />
             </tr>
           </tfoot>
         </table>
       </div>
 
-      <CheckInGuestDataModal
-        open={Boolean(guestModalRoom)}
-        roomLabel={
-          guestModalRoom
-            ? isArabic
-              ? guestModalRoom.typeAr
-              : guestModalRoom.typeEn
-            : ''
-        }
-        initialGuests={guestModalRoom ? roomGuests[guestModalRoom.id] : []}
-        isArabic={isArabic}
-        onClose={() => setGuestModalRoom(null)}
-        onSave={(guests) => {
-          if (!guestModalRoom) return
-          setRoomGuests((prev) => ({ ...prev, [guestModalRoom.id]: guests }))
-        }}
-      />
+      {!isRoomOperations ? (
+        <CheckInGuestDataModal
+          open={Boolean(guestModalRoom)}
+          roomLabel={
+            guestModalRoom
+              ? isArabic
+                ? guestModalRoom.typeAr
+                : guestModalRoom.typeEn
+              : ''
+          }
+          initialGuests={guestModalRoom ? roomGuests[guestModalRoom.id] : []}
+          isArabic={isArabic}
+          onClose={() => setGuestModalRoom(null)}
+          onSave={(guests) => {
+            if (!guestModalRoom) return
+            setRoomGuests((prev) => ({ ...prev, [guestModalRoom.id]: guests }))
+          }}
+        />
+      ) : (
+        <RoomOperationsGuestsModal
+          open={Boolean(viewGuestsRoom)}
+          roomLabel={
+            viewGuestsRoom
+              ? isArabic
+                ? viewGuestsRoom.typeAr
+                : viewGuestsRoom.typeEn
+              : ''
+          }
+          guests={viewGuestsRoom ? roomGuests[viewGuestsRoom.id] : []}
+          isArabic={isArabic}
+          onClose={() => setViewGuestsRoom(null)}
+        />
+      )}
     </div>
   )
 }

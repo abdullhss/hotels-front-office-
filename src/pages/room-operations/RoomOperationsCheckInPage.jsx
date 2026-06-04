@@ -120,6 +120,7 @@ function RoomOperationsCheckInPage() {
             key={booking.id}
             booking={booking}
             isArabic={isArabic}
+            mode="room-operations"
             reservationId={booking.reservationId || booking.raw?.reservationId}
             hotelId={booking?.raw?.hotelId}
             initialRoomNumbers={booking.initialRoomNumbers}
