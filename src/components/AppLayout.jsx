@@ -20,8 +20,8 @@ const navItems = [
   { key: 'allocation', labelAr: 'التسكين', labelEn: 'Allocation', path: '/allocation', icon: Hotel },
   {
     key: 'room-operations',
-    labelAr: 'العمليات على الغرفه',
-    labelEn: 'Room operations',
+    labelAr: 'متابعه التسكيين',
+    labelEn: 'Allocation follow-up',
     path: '/room-operations',
     icon: Hotel,
   },

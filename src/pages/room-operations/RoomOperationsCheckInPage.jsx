@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Search } from 'lucide-react'
+import { FileText, Search } from 'lucide-react'
 import {
+  finalizeAssignmentAndGetInvoice,
   mapUnitAssignmentToCheckInBooking,
   performRoomCheckout,
   resolveUnitAssignmentForCheckIn,
@@ -12,6 +13,7 @@ import CheckInSummaryCards from '../allocation/components/CheckInSummaryCards.js
 import CheckInAdditionalInfo from '../allocation/components/CheckInAdditionalInfo.jsx'
 import CheckInRoomsTable from '../allocation/components/CheckInRoomsTable.jsx'
 import ChangeRoomModal from './components/ChangeRoomModal.jsx'
+import ReservationInvoiceModal from './components/ReservationInvoiceModal.jsx'
 
 const panelClass =
   'min-w-0 max-w-full rounded-2xl border border-[#e2e8f0] bg-white p-3 shadow-sm sm:p-4'
@@ -27,9 +29,14 @@ function RoomOperationsCheckInPage() {
   const [booking, setBooking] = useState(null)
   const [loading, setLoading] = useState(true)
   const [changeRoomTarget, setChangeRoomTarget] = useState(null)
+  const [invoiceOpen, setInvoiceOpen] = useState(false)
+  const [invoiceLines, setInvoiceLines] = useState([])
+  const [finalizing, setFinalizing] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const loadAssignment = useCallback(
-    async (idOrSearch) => {
+    async (idOrSearch, { silent = false } = {}) => {
       const target = String(idOrSearch ?? assignmentId ?? '').trim()
       if (!target) {
         setBooking(null)
@@ -37,17 +44,20 @@ function RoomOperationsCheckInPage() {
         return
       }
 
-      setLoading(true)
+      if (silent) setRefreshing(true)
+      else setLoading(true)
+
       try {
         const result = await resolveUnitAssignmentForCheckIn(target)
         if (!result.success || !result.assignment) {
           toast.error(result.error ?? t('roomOperations.notFound'))
-          setBooking(null)
+          if (!silent) setBooking(null)
           return
         }
 
         const mapped = mapUnitAssignmentToCheckInBooking(result.assignment, isArabic, currency)
         setBooking(mapped)
+        setRefreshKey((k) => k + 1)
         setSearchQuery(
           mapped?.assignmentNum ? `#${mapped.assignmentNum}` : `#${result.assignment.id}`
         )
@@ -57,9 +67,10 @@ function RoomOperationsCheckInPage() {
         }
       } catch (err) {
         toast.error(err?.message ?? t('roomOperations.loadFailed'))
-        setBooking(null)
+        if (!silent) setBooking(null)
       } finally {
-        setLoading(false)
+        if (silent) setRefreshing(false)
+        else setLoading(false)
       }
     },
     [assignmentId, currency, isArabic, navigate, t]
@@ -108,6 +119,43 @@ function RoomOperationsCheckInPage() {
     }
   }
 
+  const handleFinalizeAndInvoice = async () => {
+    const assignmentHeaderId = Number(booking?.id) || 0
+    if (!assignmentHeaderId) {
+      toast.error(isArabic ? 'معرف التسكين غير صالح' : 'Invalid assignment id')
+      return
+    }
+
+    setFinalizing(true)
+    try {
+      const result = await finalizeAssignmentAndGetInvoice({
+        hotelId: booking?.raw?.hotelId,
+        unitAssignmentId: assignmentHeaderId,
+        status: 2,
+      })
+
+      if (!result?.success) {
+        toast.error(result?.error ?? t('roomOperations.finalize.failed'))
+        return
+      }
+
+      setInvoiceLines(result.lines)
+      setInvoiceOpen(true)
+      toast.success(t('roomOperations.finalize.success'))
+    } catch (err) {
+      toast.error(err?.message ?? t('roomOperations.finalize.failed'))
+    } finally {
+      setFinalizing(false)
+    }
+  }
+
+  const handleInvoiceClose = async () => {
+    setInvoiceOpen(false)
+    await loadAssignment(assignmentId, { silent: true })
+  }
+
+  const isFinalized = Number(booking?.status ?? booking?.raw?.status) === 2
+
   if (!loading && !booking) {
     return <Navigate to="/room-operations" replace />
   }
@@ -153,10 +201,11 @@ function RoomOperationsCheckInPage() {
           <CheckInSummaryCards booking={booking} isArabic={isArabic} />
           <CheckInAdditionalInfo booking={booking} isArabic={isArabic} />
           <CheckInRoomsTable
-            key={booking.id}
+            key={`${booking.id}-${refreshKey}`}
             booking={booking}
             isArabic={isArabic}
             mode="room-operations"
+            readOnly={isFinalized}
             reservationId={booking.reservationId || booking.raw?.reservationId}
             hotelId={booking?.raw?.hotelId}
             initialRoomNumbers={booking.initialRoomNumbers}
@@ -177,27 +226,61 @@ function RoomOperationsCheckInPage() {
             onSuccess={() => loadAssignment(assignmentId)}
           />
 
-          <div className="flex flex-wrap items-center gap-4 pt-2">
-            <span className="rounded-lg bg-[#eef2ff] px-3 py-1 text-sm font-medium text-brand-primary">
-              {isArabic
-                ? `رقم التسكين: ${booking.assignmentNum || booking.id}`
-                : `Assignment #${booking.assignmentNum || booking.id}`}
-            </span>
-            {booking.reservationId ? (
-              <span className="rounded-lg bg-[#ecfeff] px-3 py-1 text-sm font-medium text-[#0f766e]">
+          <div className="flex flex-col gap-4 border-t border-[#e2e8f0] pt-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={handleFinalizeAndInvoice}
+                disabled={finalizing || isFinalized || refreshing}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#059669] px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-[#047857] disabled:opacity-50"
+              >
+                <FileText className="h-4 w-4" />
+                {finalizing
+                  ? t('roomOperations.searching')
+                  : isFinalized
+                    ? t('roomOperations.finalize.done')
+                    : t('roomOperations.finalize.button')}
+              </button>
+              {refreshing ? (
+                <span className="text-sm text-[#6b7280]">{t('roomOperations.refreshing')}</span>
+              ) : null}
+              {isFinalized ? (
+                <span className="rounded-lg bg-[#dcfce7] px-3 py-1 text-sm font-medium text-[#166534]">
+                  {t('roomOperations.finalize.finalizedBadge')}
+                </span>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => navigate('/room-operations')}
+                className="text-sm font-medium text-[#dc2626] transition-colors hover:text-[#b91c1c]"
+              >
+                {t('allocation.checkInPage.cancel')}
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-lg bg-[#eef2ff] px-3 py-1 text-sm font-medium text-brand-primary">
                 {isArabic
-                  ? `رقم الحجز: ${booking.reservationId}`
-                  : `Reservation #${booking.reservationId}`}
+                  ? `رقم التسكين: ${booking.assignmentNum || booking.id}`
+                  : `Assignment #${booking.assignmentNum || booking.id}`}
               </span>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => navigate('/room-operations')}
-              className="text-sm font-medium text-[#dc2626] transition-colors hover:text-[#b91c1c]"
-            >
-              {t('allocation.checkInPage.cancel')}
-            </button>
+              {booking.reservationId ? (
+                <span className="rounded-lg bg-[#ecfeff] px-3 py-1 text-sm font-medium text-[#0f766e]">
+                  {isArabic
+                    ? `رقم الحجز: ${booking.reservationId}`
+                    : `Reservation #${booking.reservationId}`}
+                </span>
+              ) : null}
+            </div>
           </div>
+
+          <ReservationInvoiceModal
+            open={invoiceOpen}
+            onClose={handleInvoiceClose}
+            lines={invoiceLines}
+            assignmentNum={booking.assignmentNum || String(booking.id)}
+            isArabic={isArabic}
+            currencyLabel={currency}
+          />
         </>
       ) : null}
     </section>

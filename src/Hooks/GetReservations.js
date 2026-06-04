@@ -15,6 +15,8 @@ const GET_RESERVATION_DETAILS_PROCEDURE = 'FJlxEMmpZTAV9nftZApHGgvcdAIR6Vkt10kBc
 const SEARCH_FOR_RESERVATION_PROCEDURE = 'h6uuUAX0zwHfm21Jp2Rvt/kmz0u7+7fHR7Ug6X6HWO8='
 /** Hotel_SearchForUnitAssignment — hotel_id#value#StartNum#Count#encrypt */
 const SEARCH_FOR_UNIT_ASSIGNMENT_PROCEDURE = 't0LEY4nR/D4eyyem5kqoTMDfGoF/jfj0b9MwjjCoqkw='
+/** Hotel_GetReservationInvoice — Hotel_Id#UnitAssignment_id */
+const GET_RESERVATION_INVOICE_PROCEDURE = 'FJlxEMmpZTAV9nftZApHGt0WJQRiv4ZMd8oqFLzRp+U='
 /** Hotel_GetAvailableRooms — Hotel_Id#Reservation_Id#UnitName_Id#FromDate#ToDate#StartNum#Count */
 const GET_AVAILABLE_ROOMS_PROCEDURE = 'YVUU47P3dlraloAMRyrZCJpS94lWg96d5cvNxaJ4UiM='
 
@@ -30,6 +32,8 @@ const UNIT_ASSIGNMENT_COLUMNS_NAMES =
   'Id#Hotel_Id#AssignmentNum#AssignDate#AssignType#Reservation_Id#ReservationType_Id#Agent_Id#Customer_Id#FromDate#ToDate#PersonsCount#AudultsCount#ChildrenCount#RoomsCount#TotalReservationAmount#DownPayment#Status#StatusRemarks'
 /** Partial update after room checkout — WantedAction 1 (Id = UnitAssignment header, not unit row) */
 const UNIT_ASSIGNMENT_TOTAL_COLUMNS_NAMES = 'Id#TotalReservationAmount'
+/** End assignment — WantedAction 1 */
+const UNIT_ASSIGNMENT_STATUS_COLUMNS_NAMES = 'Id#Status'
 const UNIT_ASSIGNMENT_UNITS_TABLE_NAME = 'ZAjqiId7hr6wIs6Z9Dba/T7z+0Mi1Sv9bhnytqOyHeA='
 /** Partial update on checkout — WantedAction 1 */
 const UNIT_ASSIGNMENT_UNITS_CHECKOUT_COLUMNS_NAMES = 'Id#ToDate#TotalNightsCount#TotalPrice'
@@ -751,6 +755,7 @@ export function mapUnitAssignmentToCheckInBooking(row, isArabic, currencyLabel =
     sourceEn: row.typeNameEn || dash,
     notesAr: row.statusRemarks || dash,
     notesEn: row.statusRemarks || dash,
+    status: Number(row.status) || 0,
     totalRooms: rooms.length,
     adults: Number(row.adultsCount) || 0,
     children: Number(row.childrenCount) || 0,
@@ -1706,6 +1711,162 @@ export async function updateUnitAssignmentTotalReservationAmount({
     ...res,
     success: isDoTransactionSuccess(res),
     totalReservationAmount: Number(totalReservationAmount) || 0,
+  }
+}
+
+function normalizeInvoiceRoomRow(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  return {
+    unitAssignmentId: Number(raw.UnitAssignment_Id ?? raw.unitAssignment_Id ?? 0),
+    assignmentNum: String(raw.AssignmentNum ?? raw.assignmentNum ?? ''),
+    hotelUnitId: Number(raw.HotelUnit_Id ?? raw.hotelUnit_Id ?? 0),
+    unitNum: String(raw.UnitNum ?? raw.unitNum ?? ''),
+    unitDescAr: String(raw.UnitDescA ?? raw.unitDescA ?? ''),
+    unitDescEn: String(raw.UnitDescE ?? raw.unitDescE ?? ''),
+    fromDate: raw.FromDate ?? raw.fromDate ?? '',
+    toDate: raw.ToDate ?? raw.toDate ?? '',
+    nightsNum: Number(raw.NightsNum ?? raw.nightsNum ?? 0),
+    unitPricePerNight: Number(raw.UnitPricePerNight ?? raw.unitPricePerNight ?? 0),
+    roomBaseTotal: Number(raw.RoomBaseTotal ?? raw.roomBaseTotal ?? 0),
+    featuresTotal: Number(raw.FeaturesTotal ?? raw.featuresTotal ?? 0),
+    servicesTotal: Number(raw.ServicesTotal ?? raw.servicesTotal ?? 0),
+    unitAddFeatureId: Number(raw.UnitAddFeature_Id ?? raw.unitAddFeature_Id ?? 0),
+    featureNameAr: String(raw.FreatureNameA ?? raw.freatureNameA ?? ''),
+    featureNameEn: String(raw.FreatureNameE ?? raw.freatureNameE ?? ''),
+    featurePrice: Number(raw.FeaturePrice ?? raw.featurePrice ?? 0),
+    totalRoomWithFeatures: Number(raw.TotalRoomWithFeatures ?? raw.totalRoomWithFeatures ?? 0),
+    roomTotal: Number(raw.RoomTotal ?? raw.roomTotal ?? 0),
+  }
+}
+
+function parseReservationInvoicePayload(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return { lines: [] }
+  }
+
+  const keys = Object.keys(payload)
+  let dataRaw =
+    payload.InvoiceData ?? payload.invoiceData ?? payload.Data ?? payload.data
+
+  if (dataRaw == null) {
+    const dataKey = keys.find((k) => /invoicedata$/i.test(k))
+    if (dataKey) dataRaw = payload[dataKey]
+  }
+
+  const list = parseJsonList(dataRaw)
+  const lines = list.map((item) => normalizeInvoiceRoomRow(item)).filter(Boolean)
+  return { lines }
+}
+
+/**
+ * Hotel_GetReservationInvoice — Hotel_Id#UnitAssignment_id
+ */
+export async function getReservationInvoice({
+  hotelId = getAuthHotelId(),
+  unitAssignmentId = 0,
+} = {}) {
+  const hid = resolveHotelId(hotelId)
+  const aid = Number(unitAssignmentId) || 0
+  if (!aid) {
+    return { success: false, lines: [], error: 'Invalid unit assignment id' }
+  }
+
+  const params = `${hid}#${aid}`
+
+  try {
+    const response = await executeProcedure(GET_RESERVATION_INVOICE_PROCEDURE, params)
+    if (!response?.success) {
+      return {
+        success: false,
+        lines: [],
+        error: response?.error ?? 'Request failed',
+      }
+    }
+
+    const { lines } = parseReservationInvoicePayload(response.decrypted ?? {})
+    return {
+      success: true,
+      lines,
+      error: lines.length ? null : 'No invoice data',
+    }
+  } catch (err) {
+    return {
+      success: false,
+      lines: [],
+      error: err?.message ?? 'Request failed',
+    }
+  }
+}
+
+function buildUnitAssignmentStatusColumnsValues({ id = 0, status = 0 } = {}) {
+  return [Number(id) || 0, Number(status) || 0].join('#')
+}
+
+/**
+ * End assignment — partial update UnitAssignment status (WantedAction 1).
+ * Columns: Id#Status
+ */
+export async function finalizeUnitAssignmentStatus({
+  unitAssignmentId = 0,
+  status = 2,
+} = {}) {
+  const id = Number(unitAssignmentId) || 0
+  if (!id) {
+    return { success: false, errorMessage: 'Invalid unit assignment id' }
+  }
+
+  const columnsValues = buildUnitAssignmentStatusColumnsValues({ id, status })
+
+  const res = await DoTransaction(
+    UNIT_ASSIGNMENT_TABLE_NAME,
+    columnsValues,
+    1,
+    UNIT_ASSIGNMENT_STATUS_COLUMNS_NAMES
+  )
+
+  return {
+    ...res,
+    success: isDoTransactionSuccess(res),
+    status: Number(status) || 0,
+  }
+}
+
+/**
+ * End assignment (status 2) then load invoice lines.
+ */
+export async function finalizeAssignmentAndGetInvoice({
+  hotelId = getAuthHotelId(),
+  unitAssignmentId = 0,
+  status = 2,
+} = {}) {
+  const statusRes = await finalizeUnitAssignmentStatus({ unitAssignmentId, status })
+  if (!statusRes.success) {
+    return {
+      success: false,
+      lines: [],
+      error: statusRes.errorMessage ?? 'Failed to finalize assignment',
+      statusUpdate: statusRes,
+      invoice: null,
+    }
+  }
+
+  const invoiceRes = await getReservationInvoice({ hotelId, unitAssignmentId })
+  if (!invoiceRes.success) {
+    return {
+      success: false,
+      lines: [],
+      error: invoiceRes.error ?? 'Failed to load invoice',
+      statusUpdate: statusRes,
+      invoice: invoiceRes,
+    }
+  }
+
+  return {
+    success: true,
+    lines: invoiceRes.lines,
+    error: null,
+    statusUpdate: statusRes,
+    invoice: invoiceRes,
   }
 }
 

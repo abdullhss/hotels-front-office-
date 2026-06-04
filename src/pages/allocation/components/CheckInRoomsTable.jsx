@@ -17,6 +17,7 @@ function CheckInRoomsTable({
   mode = 'allocation',
   onRoomCheckout,
   onRoomChange,
+  readOnly = false,
 }) {
   const isRoomOperations = mode === 'room-operations'
   const { t } = useTranslation()
@@ -292,33 +293,44 @@ function CheckInRoomsTable({
                           })}
                         </p>
                       ) : null}
-                      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                        <button
-                          type="button"
-                          onClick={() => handleChangeRoom(room)}
-                          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-medium text-[#374151] transition-colors hover:border-brand-primary hover:text-brand-primary"
-                        >
-                          <ArrowRightLeft className="h-3.5 w-3.5 shrink-0" />
-                          {t('roomOperations.roomsTable.changeRoom')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleCheckoutRoom(room)}
-                          disabled={checkoutLoadingRoomId === room.id}
-                          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#fecaca] bg-[#fef2f2] px-3 py-2 text-xs font-medium text-[#dc2626] transition-colors hover:bg-[#fee2e2] disabled:opacity-60"
-                        >
-                          <LogOut className="h-3.5 w-3.5 shrink-0" />
-                          {t('roomOperations.roomsTable.checkoutRoom')}
-                        </button>
+                      {readOnly ? (
                         <button
                           type="button"
                           onClick={() => setViewGuestsRoom(room)}
-                          className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-brand-primary-hover"
+                          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-medium text-[#374151]"
                         >
                           <Users className="h-3.5 w-3.5 shrink-0" />
                           {t('roomOperations.roomsTable.viewGuests')}
                         </button>
-                      </div>
+                      ) : (
+                        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => handleChangeRoom(room)}
+                            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-medium text-[#374151] transition-colors hover:border-brand-primary hover:text-brand-primary"
+                          >
+                            <ArrowRightLeft className="h-3.5 w-3.5 shrink-0" />
+                            {t('roomOperations.roomsTable.changeRoom')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleCheckoutRoom(room)}
+                            disabled={checkoutLoadingRoomId === room.id}
+                            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#fecaca] bg-[#fef2f2] px-3 py-2 text-xs font-medium text-[#dc2626] transition-colors hover:bg-[#fee2e2] disabled:opacity-60"
+                          >
+                            <LogOut className="h-3.5 w-3.5 shrink-0" />
+                            {t('roomOperations.roomsTable.checkoutRoom')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setViewGuestsRoom(room)}
+                            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-brand-primary-hover"
+                          >
+                            <Users className="h-3.5 w-3.5 shrink-0" />
+                            {t('roomOperations.roomsTable.viewGuests')}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </td>
                 ) : (
