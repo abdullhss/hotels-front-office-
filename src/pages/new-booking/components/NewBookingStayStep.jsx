@@ -83,12 +83,29 @@ function NumStepper({ value, onChange, min = 0, max = 99 }) {
   )
 }
 
-function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChange }) {
+function NewBookingStayStep({
+  stayRows = [],
+  onStayRowsChange,
+  onGrandTotalChange,
+  fixedArrivalDate = null,
+  fixedDepartureDate = null,
+  maxRows = null,
+  initialDraft = null,
+  singleUnitMode = false,
+}) {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language === 'ar'
   const { unitTitles, loading: unitTitlesLoading } = useUnitTitles()
   const { extraFeatures, loading: extraFeaturesLoading } = useExtraFeatures()
-  const [draft, setDraft] = useState({ ...EMPTY_LINE })
+  const arrivalLocked = Boolean(fixedArrivalDate)
+  const departureLocked = Boolean(fixedDepartureDate)
+  const [draft, setDraft] = useState(() => ({
+    ...EMPTY_LINE,
+    ...(initialDraft ?? {}),
+    ...(fixedArrivalDate ? { arrivalDate: toInputDateValue(fixedArrivalDate) } : {}),
+    ...(fixedDepartureDate ? { departureDate: toInputDateValue(fixedDepartureDate) } : {}),
+    ...(singleUnitMode ? { unitsCount: 1 } : {}),
+  }))
 
   const rows = stayRows
   const setRows = (updater) => {
@@ -164,9 +181,29 @@ function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChang
     [getUnitPricePerNight, featureById]
   )
 
+  useEffect(() => {
+    if (!initialDraft && !fixedArrivalDate && !fixedDepartureDate) return
+    setDraft((prev) => ({
+      ...prev,
+      ...(initialDraft ?? {}),
+      ...(fixedArrivalDate ? { arrivalDate: toInputDateValue(fixedArrivalDate) } : {}),
+      ...(fixedDepartureDate ? { departureDate: toInputDateValue(fixedDepartureDate) } : {}),
+      ...(singleUnitMode ? { unitsCount: 1 } : {}),
+    }))
+  }, [initialDraft, fixedArrivalDate, fixedDepartureDate, singleUnitMode])
+
   const handleAdd = () => {
-    const arrival = toInputDateValue(draft.arrivalDate)
-    const departure = toInputDateValue(draft.departureDate)
+    if (maxRows != null && rows.length >= maxRows) {
+      toast.error(
+        isArabic
+          ? `الحد الأقصى ${maxRows} سطر`
+          : `Maximum ${maxRows} line(s) allowed`
+      )
+      return
+    }
+
+    const arrival = toInputDateValue(fixedArrivalDate ?? draft.arrivalDate)
+    const departure = toInputDateValue(fixedDepartureDate ?? draft.departureDate)
 
     if (!arrival) {
       toast.error(isArabic ? 'تاريخ الوصول مطلوب' : 'Arrival date is required')
@@ -208,7 +245,7 @@ function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChang
       return
     }
 
-    const count = Number(draft.unitsCount) || 1
+    const count = singleUnitMode ? 1 : Number(draft.unitsCount) || 1
     const servicePrice = getServicePrice(draft.serviceId)
     const nightlyCombined = getNightlyCombined(draft.unitType, draft.serviceId)
     const total = computeStayLineTotal({
@@ -234,7 +271,13 @@ function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChang
         total,
       },
     ])
-    setDraft({ ...EMPTY_LINE })
+    setDraft({
+      ...EMPTY_LINE,
+      ...(initialDraft ?? {}),
+      ...(fixedArrivalDate ? { arrivalDate: toInputDateValue(fixedArrivalDate) } : {}),
+      ...(fixedDepartureDate ? { departureDate: toInputDateValue(fixedDepartureDate) } : {}),
+      ...(singleUnitMode ? { unitsCount: 1 } : {}),
+    })
   }
 
   const handleDelete = (id) => setRows((prev) => prev.filter((r) => r.id !== id))
@@ -292,22 +335,26 @@ function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChang
                 })}
               </select>
             </div>
-            <div>
-              <FieldLabel required>{t('newBooking.stay.unitsCount')}</FieldLabel>
-              <NumStepper
-                value={draft.unitsCount}
-                onChange={(v) => updateDraft('unitsCount', v)}
-                min={1}
-              />
-            </div>
+            {!singleUnitMode ? (
+              <div>
+                <FieldLabel required>{t('newBooking.stay.unitsCount')}</FieldLabel>
+                <NumStepper
+                  value={draft.unitsCount}
+                  onChange={(v) => updateDraft('unitsCount', v)}
+                  min={1}
+                />
+              </div>
+            ) : null}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <FieldLabel required>{t('newBooking.stay.arrivalDate')}</FieldLabel>
               <IconDateInput
-                value={toInputDateValue(draft.arrivalDate)}
+                value={toInputDateValue(fixedArrivalDate ?? draft.arrivalDate)}
+                disabled={arrivalLocked}
                 onChange={(e) => {
+                  if (arrivalLocked) return
                   const nextArrival = e.target.value
                   updateDraft('arrivalDate', nextArrival)
                   const dep = toInputDateValue(draft.departureDate)
@@ -320,9 +367,13 @@ function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChang
             <div>
               <FieldLabel required>{t('newBooking.stay.departureDate')}</FieldLabel>
               <IconDateInput
-                value={toInputDateValue(draft.departureDate)}
-                min={toInputDateValue(draft.arrivalDate) || undefined}
-                onChange={(e) => updateDraft('departureDate', e.target.value)}
+                value={toInputDateValue(fixedDepartureDate ?? draft.departureDate)}
+                min={toInputDateValue(fixedArrivalDate ?? draft.arrivalDate) || undefined}
+                disabled={departureLocked}
+                onChange={(e) => {
+                  if (departureLocked) return
+                  updateDraft('departureDate', e.target.value)
+                }}
               />
             </div>
           </div>
@@ -399,7 +450,8 @@ function NewBookingStayStep({ stayRows = [], onStayRowsChange, onGrandTotalChang
             <button
               type="button"
               onClick={handleAdd}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0d9488] px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-[#0f766e]"
+              disabled={maxRows != null && rows.length >= maxRows}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0d9488] px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-[#0f766e] disabled:opacity-50"
             >
               <Plus className="h-4 w-4" />
               {t('newBooking.stay.add')}

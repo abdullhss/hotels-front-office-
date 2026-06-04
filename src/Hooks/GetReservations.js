@@ -28,7 +28,11 @@ const RESERVATION_UNIT_COLUMNS_NAMES =
 const UNIT_ASSIGNMENT_TABLE_NAME = 'oo0xSUDBgNmqRfwvq1Hmwg=='
 const UNIT_ASSIGNMENT_COLUMNS_NAMES =
   'Id#Hotel_Id#AssignmentNum#AssignDate#AssignType#Reservation_Id#ReservationType_Id#Agent_Id#Customer_Id#FromDate#ToDate#PersonsCount#AudultsCount#ChildrenCount#RoomsCount#TotalReservationAmount#DownPayment#Status#StatusRemarks'
+/** Partial update after room checkout — WantedAction 1 (Id = UnitAssignment header, not unit row) */
+const UNIT_ASSIGNMENT_TOTAL_COLUMNS_NAMES = 'Id#TotalReservationAmount'
 const UNIT_ASSIGNMENT_UNITS_TABLE_NAME = 'ZAjqiId7hr6wIs6Z9Dba/T7z+0Mi1Sv9bhnytqOyHeA='
+/** Partial update on checkout — WantedAction 1 */
+const UNIT_ASSIGNMENT_UNITS_CHECKOUT_COLUMNS_NAMES = 'Id#ToDate#TotalNightsCount#TotalPrice'
 const UNIT_ASSIGNMENT_PERSONS_TABLE_NAME = 'iN4+CZDtKgmrQ7/eBznsICXGVnYNL5rKWNvyBWP//iY='
 
 const boolStr = (v) => (v ? 'True' : 'False')
@@ -677,6 +681,7 @@ export function mapUnitAssignmentToCheckInBooking(row, isArabic, currencyLabel =
         nightsEn: nightsLabel(unitNights, false),
         priceAr: formatMoneyAmount(price, currencyLabel),
         priceEn: formatMoneyAmount(price, currencyLabel),
+        unitPricePerNight: Number(unit.UnitPricePerNight ?? unit.unitPricePerNight ?? 0),
       }
     })
   } else {
@@ -1630,6 +1635,351 @@ function buildUnitAssignmentUnitColumnsValues({
     Number(totalNightsCount) || 0,
     Number(totalPricce) || 0,
   ].join('#')
+}
+
+function buildUnitAssignmentUnitCheckoutColumnsValues({
+  id = 0,
+  toDate = '',
+  totalNightsCount = 0,
+  totalPrice = 0,
+}) {
+  return [
+    Number(id) || 0,
+    formatApiDateDdMmYyyy(toDate),
+    Number(totalNightsCount) || 0,
+    Number(totalPrice) || 0,
+  ].join('#')
+}
+
+/** Sum unit TotalPrice values; replace one unit row with checkout price. */
+export function computeUnitAssignmentTotalReservationAmount(
+  units,
+  updatedUnitId,
+  updatedUnitTotalPrice
+) {
+  const list = Array.isArray(units) ? units : []
+  const targetId = Number(updatedUnitId) || 0
+  const newPrice = Number(updatedUnitTotalPrice) || 0
+  return list.reduce((sum, unit) => {
+    const uid = Number(unit.Id ?? unit.id) || 0
+    const price = uid === targetId ? newPrice : Number(unit.TotalPrice ?? unit.totalPrice) || 0
+    return sum + price
+  }, 0)
+}
+
+function buildUnitAssignmentTotalColumnsValues({ id = 0, totalReservationAmount = 0 } = {}) {
+  return [Number(id) || 0, Number(totalReservationAmount) || 0].join('#')
+}
+
+/**
+ * Partial update UnitAssignment header (WantedAction 1).
+ * Id = UnitAssignment.Id (assignment header), not UnitAssignmentUnits.Id.
+ */
+export async function updateUnitAssignmentTotalReservationAmount({
+  unitAssignmentId = 0,
+  totalReservationAmount = 0,
+} = {}) {
+  const id = Number(unitAssignmentId) || 0
+  if (!id) {
+    return { success: false, errorMessage: 'Invalid unit assignment id' }
+  }
+
+  const columnsValues = buildUnitAssignmentTotalColumnsValues({
+    id,
+    totalReservationAmount,
+  })
+
+  console.group('[RoomOperations][Checkout] UnitAssignment header')
+  console.log('Columns:', UNIT_ASSIGNMENT_TOTAL_COLUMNS_NAMES)
+  console.log('Values:', columnsValues)
+
+  const res = await DoTransaction(
+    UNIT_ASSIGNMENT_TABLE_NAME,
+    columnsValues,
+    1,
+    UNIT_ASSIGNMENT_TOTAL_COLUMNS_NAMES
+  )
+  console.log('Response:', res)
+  console.groupEnd()
+
+  return {
+    ...res,
+    success: isDoTransactionSuccess(res),
+    totalReservationAmount: Number(totalReservationAmount) || 0,
+  }
+}
+
+/** Compute checkout totals from stay start through today (inclusive nights). */
+export function computeUnitAssignmentCheckoutTotals({ fromDate, unitPricePerNight } = {}) {
+  const fromIso = toInputDateValue(fromDate)
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const nights = nightsBetweenDates(fromIso, todayIso)
+  const rate = Number(unitPricePerNight) || 0
+  const totalPrice = rate * nights
+  return {
+    fromIso,
+    toDate: todayIso,
+    totalNightsCount: nights,
+    totalPrice,
+  }
+}
+
+/**
+ * Room checkout — partial update UnitAssignmentUnits (WantedAction 1).
+ * Columns: Id#ToDate#TotalNightsCount#TotalPrice
+ */
+export async function checkoutUnitAssignmentUnit({
+  unitAssignmentUnitId = 0,
+  fromDate = '',
+  unitPricePerNight = 0,
+  toDate,
+  totalNightsCount,
+  totalPrice,
+} = {}) {
+  const id = Number(unitAssignmentUnitId) || 0
+  if (!id) {
+    return { success: false, errorMessage: 'Invalid unit assignment unit id' }
+  }
+
+  const computed = computeUnitAssignmentCheckoutTotals({ fromDate, unitPricePerNight })
+  const checkoutTo = toDate != null ? toInputDateValue(toDate) : computed.toDate
+  const nights =
+    totalNightsCount != null ? Number(totalNightsCount) || 0 : computed.totalNightsCount
+  const price =
+    totalPrice != null ? Number(totalPrice) || 0 : computed.totalPrice
+
+  if (!checkoutTo) {
+    return { success: false, errorMessage: 'Invalid checkout date' }
+  }
+
+  const columnsValues = buildUnitAssignmentUnitCheckoutColumnsValues({
+    id,
+    toDate: checkoutTo,
+    totalNightsCount: nights,
+    totalPrice: price,
+  })
+
+  console.group('[RoomOperations][Checkout] UnitAssignmentUnits')
+  console.log('Columns:', UNIT_ASSIGNMENT_UNITS_CHECKOUT_COLUMNS_NAMES)
+  console.log('Values:', columnsValues)
+
+  const res = await DoTransaction(
+    UNIT_ASSIGNMENT_UNITS_TABLE_NAME,
+    columnsValues,
+    1,
+    UNIT_ASSIGNMENT_UNITS_CHECKOUT_COLUMNS_NAMES
+  )
+  console.log('Response:', res)
+  console.groupEnd()
+
+  return {
+    ...res,
+    success: isDoTransactionSuccess(res),
+    checkout: {
+      toDate: checkoutTo,
+      totalNightsCount: nights,
+      totalPrice: price,
+    },
+  }
+}
+
+/**
+ * Room checkout: update unit row then recalculate UnitAssignment.TotalReservationAmount.
+ * unitAssignmentId = UnitAssignment header Id (booking/assignment id), not room unit row Id.
+ */
+export async function performRoomCheckout({
+  unitAssignmentId = 0,
+  unitAssignmentUnitId = 0,
+  fromDate = '',
+  unitPricePerNight = 0,
+  assignmentUnits = [],
+} = {}) {
+  const headerId = Number(unitAssignmentId) || 0
+  const unitId = Number(unitAssignmentUnitId) || 0
+  if (!headerId) {
+    return { success: false, errorMessage: 'Invalid unit assignment id' }
+  }
+  if (!unitId) {
+    return { success: false, errorMessage: 'Invalid unit assignment unit id' }
+  }
+
+  const unitResult = await checkoutUnitAssignmentUnit({
+    unitAssignmentUnitId: unitId,
+    fromDate,
+    unitPricePerNight,
+  })
+
+  if (!unitResult.success) {
+    return {
+      success: false,
+      errorMessage: unitResult.errorMessage ?? 'Unit checkout failed',
+      unitCheckout: unitResult,
+      headerUpdate: null,
+    }
+  }
+
+  const newTotal = computeUnitAssignmentTotalReservationAmount(
+    assignmentUnits,
+    unitId,
+    unitResult.checkout?.totalPrice
+  )
+
+  const headerResult = await updateUnitAssignmentTotalReservationAmount({
+    unitAssignmentId: headerId,
+    totalReservationAmount: newTotal,
+  })
+
+  if (!headerResult.success) {
+    return {
+      success: false,
+      errorMessage: headerResult.errorMessage ?? 'Failed to update assignment total',
+      unitCheckout: unitResult,
+      headerUpdate: headerResult,
+      totalReservationAmount: newTotal,
+    }
+  }
+
+  return {
+    success: true,
+    unitCheckout: unitResult,
+    headerUpdate: headerResult,
+    totalReservationAmount: newTotal,
+  }
+}
+
+/** Total after closing one unit and adding a new unit row. */
+export function computeAssignmentTotalAfterRoomChange(
+  units,
+  closedUnitId,
+  closedUnitNewPrice,
+  newUnitTotalPrice
+) {
+  const list = Array.isArray(units) ? units : []
+  const targetId = Number(closedUnitId) || 0
+  const closedPrice = Number(closedUnitNewPrice) || 0
+  const addedPrice = Number(newUnitTotalPrice) || 0
+  const existingSum = list.reduce((sum, unit) => {
+    const uid = Number(unit.Id ?? unit.id) || 0
+    const price =
+      uid === targetId ? closedPrice : Number(unit.TotalPrice ?? unit.totalPrice) || 0
+    return sum + price
+  }, 0)
+  return existingSum + addedPrice
+}
+
+/** Map new-booking stay line + room selection to allocation multi-save payload. */
+export function mapStayRowToUnitAssignmentPayload(stayRow, hotelUnitId, availableRoom = null) {
+  const fromDate = toInputDateValue(stayRow?.arrivalDate)
+  const toDate = toInputDateValue(stayRow?.departureDate)
+  const nights =
+    Number(stayRow?.nightsCount) || nightsBetweenDates(fromDate, toDate) || computeNightsCount(fromDate, toDate)
+  const nightly =
+    Number(stayRow?.unitPrice) ||
+    Number(availableRoom?.unitPricePerNight) ||
+    0
+  const totalPricce =
+    Number(stayRow?.total) || (nightly > 0 && nights > 0 ? nightly * nights : 0)
+  const adults = Number(stayRow?.adults) || 0
+  const children = Number(stayRow?.children) || 0
+
+  return {
+    hotelUnitId: Number(hotelUnitId) || 0,
+    unitAddFeatureId:
+      Number(stayRow?.serviceId) || Number(availableRoom?.unitAddFeatureId) || 0,
+    personsCountPerUnit: adults + children,
+    fromDate,
+    toDate,
+    unitPricePerNight: nightly,
+    totalNightsCount: nights,
+    totalPricce,
+  }
+}
+
+/**
+ * Change room: close current unit, save new unit+persons (DoMultiTransaction), update header total.
+ */
+export async function performRoomChange({
+  unitAssignmentId = 0,
+  closedUnitAssignmentUnitId = 0,
+  closedFromDate = '',
+  closedUnitPricePerNight = 0,
+  assignmentUnits = [],
+  newUnit = {},
+  persons = [],
+} = {}) {
+  const headerId = Number(unitAssignmentId) || 0
+  const closedId = Number(closedUnitAssignmentUnitId) || 0
+  if (!headerId) {
+    return { success: false, errorMessage: 'Invalid unit assignment id' }
+  }
+  if (!closedId) {
+    return { success: false, errorMessage: 'Invalid unit assignment unit id' }
+  }
+
+  const closeRes = await checkoutUnitAssignmentUnit({
+    unitAssignmentUnitId: closedId,
+    fromDate: closedFromDate,
+    unitPricePerNight: closedUnitPricePerNight,
+  })
+
+  if (!closeRes.success) {
+    return {
+      success: false,
+      errorMessage: closeRes.errorMessage ?? 'Failed to close current room',
+      closeUnit: closeRes,
+      rowSave: null,
+      headerUpdate: null,
+    }
+  }
+
+  const multiRes = await saveUnitAssignmentRowMulti({
+    unitAssignmentId: headerId,
+    unit: newUnit,
+    persons,
+  })
+
+  if (!isDoTransactionSuccess(multiRes)) {
+    return {
+      success: false,
+      errorMessage: multiRes?.errorMessage ?? 'Failed to save new room',
+      closeUnit: closeRes,
+      rowSave: multiRes,
+      headerUpdate: null,
+    }
+  }
+
+  const newUnitTotal = Number(newUnit?.totalPricce) || 0
+  const newTotal = computeAssignmentTotalAfterRoomChange(
+    assignmentUnits,
+    closedId,
+    closeRes.checkout?.totalPrice,
+    newUnitTotal
+  )
+
+  const headerRes = await updateUnitAssignmentTotalReservationAmount({
+    unitAssignmentId: headerId,
+    totalReservationAmount: newTotal,
+  })
+
+  if (!headerRes.success) {
+    return {
+      success: false,
+      errorMessage: headerRes.errorMessage ?? 'Failed to update assignment total',
+      closeUnit: closeRes,
+      rowSave: multiRes,
+      headerUpdate: headerRes,
+      totalReservationAmount: newTotal,
+    }
+  }
+
+  return {
+    success: true,
+    closeUnit: closeRes,
+    rowSave: multiRes,
+    headerUpdate: headerRes,
+    unitAssignmentUnitId: Number(multiRes.unitAssignmentUnitId) || 0,
+    totalReservationAmount: newTotal,
+  }
 }
 
 function buildUnitAssignmentPersonColumnsValues({

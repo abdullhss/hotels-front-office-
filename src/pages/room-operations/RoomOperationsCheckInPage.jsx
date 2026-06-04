@@ -5,11 +5,13 @@ import { toast } from 'sonner'
 import { Search } from 'lucide-react'
 import {
   mapUnitAssignmentToCheckInBooking,
+  performRoomCheckout,
   resolveUnitAssignmentForCheckIn,
 } from '../../Hooks/GetReservations.js'
 import CheckInSummaryCards from '../allocation/components/CheckInSummaryCards.jsx'
 import CheckInAdditionalInfo from '../allocation/components/CheckInAdditionalInfo.jsx'
 import CheckInRoomsTable from '../allocation/components/CheckInRoomsTable.jsx'
+import ChangeRoomModal from './components/ChangeRoomModal.jsx'
 
 const panelClass =
   'min-w-0 max-w-full rounded-2xl border border-[#e2e8f0] bg-white p-3 shadow-sm sm:p-4'
@@ -24,6 +26,7 @@ function RoomOperationsCheckInPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [booking, setBooking] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [changeRoomTarget, setChangeRoomTarget] = useState(null)
 
   const loadAssignment = useCallback(
     async (idOrSearch) => {
@@ -70,6 +73,39 @@ function RoomOperationsCheckInPage() {
     const q = searchQuery.trim()
     if (!q) return
     loadAssignment(q)
+  }
+
+  const handleRoomCheckout = async (room) => {
+    const unitId = Number(room?.id) || 0
+    const assignmentHeaderId = Number(booking?.id) || 0
+    if (!unitId) {
+      toast.error(isArabic ? 'معرف الغرفة غير صالح' : 'Invalid room id')
+      return
+    }
+    if (!assignmentHeaderId) {
+      toast.error(isArabic ? 'معرف التسكين غير صالح' : 'Invalid assignment id')
+      return
+    }
+
+    try {
+      const result = await performRoomCheckout({
+        unitAssignmentId: assignmentHeaderId,
+        unitAssignmentUnitId: unitId,
+        fromDate: room.fromDate,
+        unitPricePerNight: room.unitPricePerNight,
+        assignmentUnits: booking?.raw?.unitAssignmentUnits ?? [],
+      })
+
+      if (!result?.success) {
+        toast.error(result?.errorMessage ?? t('roomOperations.roomsTable.checkoutFailed'))
+        return
+      }
+
+      toast.success(t('roomOperations.roomsTable.checkoutSuccess'))
+      await loadAssignment(assignmentId)
+    } catch (err) {
+      toast.error(err?.message ?? t('roomOperations.roomsTable.checkoutFailed'))
+    }
   }
 
   if (!loading && !booking) {
@@ -125,6 +161,20 @@ function RoomOperationsCheckInPage() {
             hotelId={booking?.raw?.hotelId}
             initialRoomNumbers={booking.initialRoomNumbers}
             initialRoomGuests={booking.initialRoomGuests}
+            onRoomCheckout={handleRoomCheckout}
+            onRoomChange={(room) => setChangeRoomTarget(room)}
+          />
+
+          <ChangeRoomModal
+            open={Boolean(changeRoomTarget)}
+            room={changeRoomTarget}
+            booking={booking}
+            initialGuests={
+              changeRoomTarget ? booking?.initialRoomGuests?.[changeRoomTarget.id] : []
+            }
+            isArabic={isArabic}
+            onClose={() => setChangeRoomTarget(null)}
+            onSuccess={() => loadAssignment(assignmentId)}
           />
 
           <div className="flex flex-wrap items-center gap-4 pt-2">

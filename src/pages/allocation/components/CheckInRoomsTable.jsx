@@ -15,6 +15,8 @@ function CheckInRoomsTable({
   initialRoomNumbers = null,
   initialRoomGuests = null,
   mode = 'allocation',
+  onRoomCheckout,
+  onRoomChange,
 }) {
   const isRoomOperations = mode === 'room-operations'
   const { t } = useTranslation()
@@ -25,6 +27,7 @@ function CheckInRoomsTable({
   })
   const [guestModalRoom, setGuestModalRoom] = useState(null)
   const [viewGuestsRoom, setViewGuestsRoom] = useState(null)
+  const [checkoutLoadingRoomId, setCheckoutLoadingRoomId] = useState(null)
   const [roomGuests, setRoomGuests] = useState(() => initialRoomGuests ?? {})
   const [availableRoomsByRow, setAvailableRoomsByRow] = useState({})
   const [loadingRows, setLoadingRows] = useState({})
@@ -166,6 +169,27 @@ function CheckInRoomsTable({
     count: booking.children,
   })
 
+  const handleCheckoutRoom = async (room) => {
+    if (typeof onRoomCheckout !== 'function') {
+      toast.info(t('roomOperations.roomsTable.checkoutComingSoon'))
+      return
+    }
+    setCheckoutLoadingRoomId(room.id)
+    try {
+      await onRoomCheckout(room)
+    } finally {
+      setCheckoutLoadingRoomId(null)
+    }
+  }
+
+  const handleChangeRoom = (room) => {
+    if (typeof onRoomChange === 'function') {
+      onRoomChange(room)
+      return
+    }
+    toast.info(t('roomOperations.roomsTable.changeRoomComingSoon'))
+  }
+
   return (
     <div className="rounded-2xl border border-[#e2e8f0] bg-white p-4 shadow-sm sm:p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -271,9 +295,7 @@ function CheckInRoomsTable({
                       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                         <button
                           type="button"
-                          onClick={() =>
-                            toast.info(t('roomOperations.roomsTable.changeRoomComingSoon'))
-                          }
+                          onClick={() => handleChangeRoom(room)}
                           className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-medium text-[#374151] transition-colors hover:border-brand-primary hover:text-brand-primary"
                         >
                           <ArrowRightLeft className="h-3.5 w-3.5 shrink-0" />
@@ -281,10 +303,9 @@ function CheckInRoomsTable({
                         </button>
                         <button
                           type="button"
-                          onClick={() =>
-                            toast.info(t('roomOperations.roomsTable.checkoutComingSoon'))
-                          }
-                          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#fecaca] bg-[#fef2f2] px-3 py-2 text-xs font-medium text-[#dc2626] transition-colors hover:bg-[#fee2e2]"
+                          onClick={() => handleCheckoutRoom(room)}
+                          disabled={checkoutLoadingRoomId === room.id}
+                          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#fecaca] bg-[#fef2f2] px-3 py-2 text-xs font-medium text-[#dc2626] transition-colors hover:bg-[#fee2e2] disabled:opacity-60"
                         >
                           <LogOut className="h-3.5 w-3.5 shrink-0" />
                           {t('roomOperations.roomsTable.checkoutRoom')}
