@@ -18,6 +18,13 @@ const navItems = [
   { key: 'dashboard', labelAr: 'لوحة التحكم', labelEn: 'Dashboard', path: '/', icon: LayoutDashboard },
   { key: 'bookings', labelAr: 'الحجوزات', labelEn: 'Bookings', path: '/bookings', icon: ClipboardList },
   { key: 'allocation', labelAr: 'التسكين', labelEn: 'Allocation', path: '/allocation', icon: Hotel },
+  {
+    key: 'room-operations',
+    labelAr: 'العمليات على الغرفه',
+    labelEn: 'Room operations',
+    path: '/room-operations',
+    icon: Hotel,
+  },
   { key: 'units', labelAr: 'الوحدات', labelEn: 'Units', path: '/units', icon: Hotel },
   { key: 'unit-transfer', labelAr: 'نقل بين الوحدات', labelEn: 'Unit Transfer', path: '/unit-transfer', icon: Hotel },
   { key: 'checkout', labelAr: 'المغادرة', labelEn: 'Check-out', path: '/check-out', icon: Users },

@@ -33,7 +33,7 @@ function RoadIllustration() {
   )
 }
 
-function AllocationEmptyState({ variant = 'empty' }) {
+function AllocationEmptyState({ variant = 'empty', i18nNamespace = 'allocation' }) {
   const { t } = useTranslation()
   const isPrompt = variant === 'prompt'
 
@@ -41,11 +41,11 @@ function AllocationEmptyState({ variant = 'empty' }) {
     <div className="flex flex-col items-center justify-center py-16">
       <RoadIllustration />
       <p className="mt-4 text-center text-base font-medium text-[#374151]">
-        {t(isPrompt ? 'allocation.enterReservationHint' : 'allocation.emptyTitle')}
+        {t(isPrompt ? `${i18nNamespace}.enterReservationHint` : `${i18nNamespace}.emptyTitle`)}
       </p>
       {isPrompt ? (
         <p className="mt-2 max-w-md text-center text-sm text-[#6b7280]">
-          {t('allocation.enterReservationHintSub')}
+          {t(`${i18nNamespace}.enterReservationHintSub`)}
         </p>
       ) : null}
     </div>

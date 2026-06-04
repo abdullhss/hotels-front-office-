@@ -5,13 +5,23 @@ import { toast } from 'sonner'
 import CheckInGuestDataModal from './CheckInGuestDataModal.jsx'
 import { getAvailableRoomsForReservationUnit } from '../../../Hooks/GetReservations.js'
 
-function CheckInRoomsTable({ booking, isArabic, reservationId, hotelId, onRowsDataChange }) {
+function CheckInRoomsTable({
+  booking,
+  isArabic,
+  reservationId,
+  hotelId,
+  onRowsDataChange,
+  initialRoomNumbers = null,
+  initialRoomGuests = null,
+}) {
   const { t } = useTranslation()
-  const [roomNumbers, setRoomNumbers] = useState(() =>
-    Object.fromEntries(booking.rooms.map((room) => [room.id, '']))
-  )
+  const [roomNumbers, setRoomNumbers] = useState(() => {
+    const defaults = Object.fromEntries(booking.rooms.map((room) => [room.id, '']))
+    if (!initialRoomNumbers) return defaults
+    return { ...defaults, ...initialRoomNumbers }
+  })
   const [guestModalRoom, setGuestModalRoom] = useState(null)
-  const [roomGuests, setRoomGuests] = useState({})
+  const [roomGuests, setRoomGuests] = useState(() => initialRoomGuests ?? {})
   const [availableRoomsByRow, setAvailableRoomsByRow] = useState({})
   const [loadingRows, setLoadingRows] = useState({})
 
@@ -37,6 +47,25 @@ function CheckInRoomsTable({ booking, isArabic, reservationId, hotelId, onRowsDa
           const id = Number(room.id) || 0
           if (!id) return
 
+          const preAssignedId = Number(room.hotelUnitId) || 0
+          if (preAssignedId > 0) {
+            if (!ignore) {
+              setAvailableRoomsByRow((prev) => ({
+                ...prev,
+                [room.id]: [
+                  {
+                    id: preAssignedId,
+                    unitNum: room.assignedUnitLabel || String(preAssignedId),
+                    unitAddFeatureId: Number(room.unitAddFeatureId) || 0,
+                    unitPricePerNight: 0,
+                  },
+                ],
+              }))
+              setLoadingRows((prev) => ({ ...prev, [room.id]: false }))
+            }
+            return
+          }
+
           if (!ignore) {
             setLoadingRows((prev) => ({ ...prev, [room.id]: true }))
           }
@@ -57,7 +86,21 @@ function CheckInRoomsTable({ booking, isArabic, reservationId, hotelId, onRowsDa
             return
           }
 
-          setAvailableRoomsByRow((prev) => ({ ...prev, [room.id]: result.rooms }))
+          let rooms = result.rooms ?? []
+          const assignedId = Number(room.hotelUnitId) || 0
+          if (assignedId > 0 && !rooms.some((r) => Number(r.id) === assignedId)) {
+            rooms = [
+              {
+                id: assignedId,
+                unitNum: room.assignedUnitLabel || String(assignedId),
+                unitAddFeatureId: Number(room.unitAddFeatureId) || 0,
+                unitPricePerNight: 0,
+              },
+              ...rooms,
+            ]
+          }
+
+          setAvailableRoomsByRow((prev) => ({ ...prev, [room.id]: rooms }))
           setLoadingRows((prev) => ({ ...prev, [room.id]: false }))
         })
       )
@@ -69,6 +112,16 @@ function CheckInRoomsTable({ booking, isArabic, reservationId, hotelId, onRowsDa
       ignore = true
     }
   }, [roomRows, reservationId, hotelId, t])
+
+  useEffect(() => {
+    if (!initialRoomNumbers) return
+    setRoomNumbers((prev) => ({ ...prev, ...initialRoomNumbers }))
+  }, [booking.id, initialRoomNumbers])
+
+  useEffect(() => {
+    if (!initialRoomGuests) return
+    setRoomGuests(initialRoomGuests)
+  }, [booking.id, initialRoomGuests])
 
   useEffect(() => {
     if (typeof onRowsDataChange !== 'function') return

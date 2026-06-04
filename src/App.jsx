@@ -9,6 +9,8 @@ import BookingsPage from './pages/bookings/BookingsPage.jsx'
 import NewBookingPage from './pages/new-booking/NewBookingPage.jsx'
 import AllocationPage from './pages/allocation/AllocationPage.jsx'
 import AllocationCheckInPage from './pages/allocation/AllocationCheckInPage.jsx'
+import RoomOperationsPage from './pages/room-operations/RoomOperationsPage.jsx'
+import RoomOperationsCheckInPage from './pages/room-operations/RoomOperationsCheckInPage.jsx'
 import CustomersPage from './pages/customers/CustomersPage.jsx'
 import AddCustomerPage from './pages/customers/AddCustomerPage.jsx'
 import MonthlyReportPage from './pages/monthly-report/MonthlyReportPage.jsx'
@@ -38,6 +40,11 @@ function App() {
           <Route path="/bookings/new" element={guard(<NewBookingPage />)} />
           <Route path="/allocation" element={guard(<AllocationPage />)} />
           <Route path="/allocation/:bookingId/check-in" element={guard(<AllocationCheckInPage />)} />
+          <Route path="/room-operations" element={guard(<RoomOperationsPage />)} />
+          <Route
+            path="/room-operations/:assignmentId/check-in"
+            element={guard(<RoomOperationsCheckInPage />)}
+          />
           <Route path="/units" element={guard(<UnitsPage />)} />
           <Route path="/unit-transfer" element={guard(<DashboardPage />)} />
           <Route path="/check-out" element={guard(<DashboardPage />)} />
