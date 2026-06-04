@@ -151,12 +151,12 @@ export const executeProcedure = async (ProcedureName, procedureValues) => {
  * checkLogin
  * ProcedureName: 7lgMl3DLGpYu7xln2ZexiA==
  * ParametersValues: Email#Pass#Encrypt#moduleNum
- * Encrypt placeholder: "$????", moduleNum: 2
+ * Encrypt placeholder: "$????", moduleNum: 1
  */
 export const checkLogin = async (email, password, encrypt = "$????") => {
   const safeEmail = String(email ?? "").trim();
   const safePassword = String(password ?? "");
-  const payload = `${safeEmail}#${safePassword}#${encrypt}#2`;
+  const payload = `${safeEmail}#${safePassword}#${encrypt}#1`;
 
   try {
     const response = await executeProcedure(

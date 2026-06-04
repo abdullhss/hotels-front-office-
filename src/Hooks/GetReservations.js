@@ -625,6 +625,22 @@ export async function resolveUnitAssignmentForCheckIn(searchValue) {
   }
 }
 
+/** Room stay total (TotalPrice) plus feature charge (FeaturePrice × nights when applicable). */
+export function computeUnitAssignmentLinePrice(unit) {
+  if (!unit || typeof unit !== 'object') return 0
+  const roomTotal = Number(unit.TotalPrice ?? unit.totalPrice) || 0
+  const featurePerNight = Number(unit.FeaturePrice ?? unit.featurePrice) || 0
+  let nights = Number(unit.TotalNightsCount ?? unit.totalNightsCount) || 0
+  if (!nights) {
+    const from = toInputDateValue(unit.FromDate ?? unit.fromDate)
+    const to = toInputDateValue(unit.ToDate ?? unit.toDate)
+    nights = nightsBetweenDates(from, to) || 0
+  }
+  const featuresTotal =
+    featurePerNight > 0 && nights > 0 ? featurePerNight * nights : featurePerNight
+  return roomTotal + featuresTotal
+}
+
 export function mapUnitAssignmentToCheckInBooking(row, isArabic, currencyLabel = 'د.ل.') {
   if (!row) return null
 
@@ -652,7 +668,7 @@ export function mapUnitAssignmentToCheckInBooking(row, isArabic, currencyLabel =
         Number(unit.TotalNightsCount ?? unit.totalNightsCount) ||
         nightsBetweenDates(unitFrom, unitTo) ||
         nights
-      const price = Number(unit.TotalPrice ?? unit.totalPrice) || 0
+      const linePrice = computeUnitAssignmentLinePrice(unit)
       const personsPerUnit = Number(unit.PersonsCountPerUnit ?? unit.personsCountPerUnit) || 0
       const hotelUnitId = Number(unit.HotelUnit_Id ?? unit.hotelUnit_Id ?? 0)
       const unitNum = String(unit.UnitNum ?? unit.unitNum ?? '').trim()
@@ -685,9 +701,11 @@ export function mapUnitAssignmentToCheckInBooking(row, isArabic, currencyLabel =
         nights: unitNights,
         nightsAr: nightsLabel(unitNights, true),
         nightsEn: nightsLabel(unitNights, false),
-        priceAr: formatMoneyAmount(price, currencyLabel),
-        priceEn: formatMoneyAmount(price, currencyLabel),
+        linePriceAmount: linePrice,
+        priceAr: formatMoneyAmount(linePrice, currencyLabel),
+        priceEn: formatMoneyAmount(linePrice, currencyLabel),
         unitPricePerNight: Number(unit.UnitPricePerNight ?? unit.unitPricePerNight ?? 0),
+        featurePrice: Number(unit.FeaturePrice ?? unit.featurePrice ?? 0),
       }
     })
   } else {
@@ -712,6 +730,7 @@ export function mapUnitAssignmentToCheckInBooking(row, isArabic, currencyLabel =
         nights,
         nightsAr: nightsLabel(nights, true),
         nightsEn: nightsLabel(nights, false),
+        linePriceAmount: perRoomPrice,
         priceAr: formatMoneyAmount(perRoomPrice, currencyLabel),
         priceEn: formatMoneyAmount(perRoomPrice, currencyLabel),
       }
@@ -720,8 +739,11 @@ export function mapUnitAssignmentToCheckInBooking(row, isArabic, currencyLabel =
 
   const totalRoomNights = rooms.reduce((sum, room) => sum + (Number(room.nights) || 0), 0)
   const totalRoomsPrice = rooms.reduce((sum, room) => {
-    const price = Number(String(room.priceEn).replace(/[^\d.]/g, ''))
-    return sum + (Number.isFinite(price) ? price : 0)
+    const amount =
+      Number(room.linePriceAmount) ||
+      Number(String(room.priceEn).replace(/[^\d.]/g, '')) ||
+      0
+    return sum + (Number.isFinite(amount) ? amount : 0)
   }, 0)
 
   return {
@@ -1669,8 +1691,9 @@ export function computeUnitAssignmentTotalReservationAmount(
   const newPrice = Number(updatedUnitTotalPrice) || 0
   return list.reduce((sum, unit) => {
     const uid = Number(unit.Id ?? unit.id) || 0
-    const price = uid === targetId ? newPrice : Number(unit.TotalPrice ?? unit.totalPrice) || 0
-    return sum + price
+    const merged =
+      uid === targetId ? { ...unit, TotalPrice: newPrice, totalPrice: newPrice } : unit
+    return sum + computeUnitAssignmentLinePrice(merged)
   }, 0)
 }
 
