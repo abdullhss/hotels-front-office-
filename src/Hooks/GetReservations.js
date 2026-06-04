@@ -655,6 +655,7 @@ export function mapUnitAssignmentToCheckInBooking(row, isArabic, currencyLabel =
       const price = Number(unit.TotalPrice ?? unit.totalPrice) || 0
       const personsPerUnit = Number(unit.PersonsCountPerUnit ?? unit.personsCountPerUnit) || 0
       const hotelUnitId = Number(unit.HotelUnit_Id ?? unit.hotelUnit_Id ?? 0)
+      const unitNum = String(unit.UnitNum ?? unit.unitNum ?? '').trim()
       const featureAr = String(unit.FreatureNameA ?? unit.freatureNameA ?? '').trim()
       const featureEn = String(unit.FreatureNameE ?? unit.freatureNameE ?? '').trim()
       const typeAr = String(unit.UnitDescA ?? unit.unitDescA ?? '').trim() || dash
@@ -670,7 +671,8 @@ export function mapUnitAssignmentToCheckInBooking(row, isArabic, currencyLabel =
         id: unitId,
         unitNameId: 0,
         hotelUnitId,
-        assignedUnitLabel: typeAr || typeEn || String(hotelUnitId),
+        unitNum,
+        assignedUnitLabel: unitNum || typeAr || typeEn || String(hotelUnitId),
         unitAddFeatureId: Number(unit.UnitAddFeature_Id ?? unit.unitAddFeature_Id ?? 0),
         typeAr,
         typeEn,

@@ -239,9 +239,14 @@ function CheckInRoomsTable({
                 {t('allocation.checkInPage.price')}
               </th>
               {isRoomOperations ? (
-                <th className="px-3 py-3 text-start font-medium">
-                  {t('roomOperations.roomsTable.actions')}
-                </th>
+                <>
+                  <th className="px-3 py-3 text-start font-medium">
+                    {t('allocation.checkInPage.roomNumber')}
+                  </th>
+                  <th className="px-3 py-3 text-start font-medium">
+                    {t('roomOperations.roomsTable.actions')}
+                  </th>
+                </>
               ) : (
                 <>
                   <th className="px-3 py-3 text-start font-medium">
@@ -284,15 +289,12 @@ function CheckInRoomsTable({
                   {isArabic ? room.priceAr : room.priceEn}
                 </td>
                 {isRoomOperations ? (
-                  <td className="px-3 py-4">
+                  <>
+                    <td className="px-3 py-4 font-semibold text-[#111827]" dir="ltr">
+                      {room.unitNum || '—'}
+                    </td>
+                    <td className="px-3 py-4">
                     <div className="flex min-w-[220px] flex-col gap-2">
-                      {room.assignedUnitLabel ? (
-                        <p className="m-0 text-xs text-[#6b7280]">
-                          {t('roomOperations.roomsTable.currentRoom', {
-                            room: room.assignedUnitLabel,
-                          })}
-                        </p>
-                      ) : null}
                       {readOnly ? (
                         <button
                           type="button"
@@ -332,7 +334,8 @@ function CheckInRoomsTable({
                         </div>
                       )}
                     </div>
-                  </td>
+                    </td>
+                  </>
                 ) : (
                   <>
                     <td className="px-3 py-4">
@@ -382,7 +385,7 @@ function CheckInRoomsTable({
               <td className="px-3 py-4 text-sm font-semibold text-[#059669]">
                 {isArabic ? booking.totalRoomsPriceAr : booking.totalRoomsPriceEn}
               </td>
-              <td colSpan={isRoomOperations ? 1 : 2} />
+              <td colSpan={isRoomOperations ? 2 : 2} />
             </tr>
           </tfoot>
         </table>

@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { FileText, Search } from 'lucide-react'
 import {
-  finalizeAssignmentAndGetInvoice,
+  finalizeUnitAssignmentStatus,
+  getReservationInvoice,
   mapUnitAssignmentToCheckInBooking,
   performRoomCheckout,
   resolveUnitAssignmentForCheckIn,
@@ -31,7 +32,8 @@ function RoomOperationsCheckInPage() {
   const [changeRoomTarget, setChangeRoomTarget] = useState(null)
   const [invoiceOpen, setInvoiceOpen] = useState(false)
   const [invoiceLines, setInvoiceLines] = useState([])
-  const [finalizing, setFinalizing] = useState(false)
+  const [loadingInvoice, setLoadingInvoice] = useState(false)
+  const [endingAssignment, setEndingAssignment] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -119,39 +121,62 @@ function RoomOperationsCheckInPage() {
     }
   }
 
-  const handleFinalizeAndInvoice = async () => {
+  const handleViewInvoice = async () => {
     const assignmentHeaderId = Number(booking?.id) || 0
     if (!assignmentHeaderId) {
       toast.error(isArabic ? 'معرف التسكين غير صالح' : 'Invalid assignment id')
       return
     }
 
-    setFinalizing(true)
+    setLoadingInvoice(true)
     try {
-      const result = await finalizeAssignmentAndGetInvoice({
+      const result = await getReservationInvoice({
         hotelId: booking?.raw?.hotelId,
         unitAssignmentId: assignmentHeaderId,
-        status: 2,
       })
 
       if (!result?.success) {
-        toast.error(result?.error ?? t('roomOperations.finalize.failed'))
+        toast.error(result?.error ?? t('roomOperations.invoice.loadFailed'))
         return
       }
 
       setInvoiceLines(result.lines)
       setInvoiceOpen(true)
-      toast.success(t('roomOperations.finalize.success'))
     } catch (err) {
-      toast.error(err?.message ?? t('roomOperations.finalize.failed'))
+      toast.error(err?.message ?? t('roomOperations.invoice.loadFailed'))
     } finally {
-      setFinalizing(false)
+      setLoadingInvoice(false)
     }
   }
 
-  const handleInvoiceClose = async () => {
+  const handleInvoiceClose = () => {
     setInvoiceOpen(false)
-    await loadAssignment(assignmentId, { silent: true })
+  }
+
+  const handleEndAssignment = async () => {
+    const assignmentHeaderId = Number(booking?.id) || 0
+    if (!assignmentHeaderId) return
+
+    setEndingAssignment(true)
+    try {
+      const result = await finalizeUnitAssignmentStatus({
+        unitAssignmentId: assignmentHeaderId,
+        status: 2,
+      })
+
+      if (!result?.success) {
+        toast.error(result?.errorMessage ?? t('roomOperations.finalize.failed'))
+        return
+      }
+
+      toast.success(t('roomOperations.finalize.success'))
+      setInvoiceOpen(false)
+      await loadAssignment(assignmentId, { silent: true })
+    } catch (err) {
+      toast.error(err?.message ?? t('roomOperations.finalize.failed'))
+    } finally {
+      setEndingAssignment(false)
+    }
   }
 
   const isFinalized = Number(booking?.status ?? booking?.raw?.status) === 2
@@ -230,16 +255,12 @@ function RoomOperationsCheckInPage() {
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={handleFinalizeAndInvoice}
-                disabled={finalizing || isFinalized || refreshing}
+                onClick={handleViewInvoice}
+                disabled={loadingInvoice || refreshing}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#059669] px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-[#047857] disabled:opacity-50"
               >
                 <FileText className="h-4 w-4" />
-                {finalizing
-                  ? t('roomOperations.searching')
-                  : isFinalized
-                    ? t('roomOperations.finalize.done')
-                    : t('roomOperations.finalize.button')}
+                {loadingInvoice ? t('roomOperations.searching') : t('roomOperations.invoice.viewButton')}
               </button>
               {refreshing ? (
                 <span className="text-sm text-[#6b7280]">{t('roomOperations.refreshing')}</span>
@@ -276,6 +297,9 @@ function RoomOperationsCheckInPage() {
           <ReservationInvoiceModal
             open={invoiceOpen}
             onClose={handleInvoiceClose}
+            onEndAssignment={handleEndAssignment}
+            isFinalized={isFinalized}
+            endingAssignment={endingAssignment}
             lines={invoiceLines}
             assignmentNum={booking.assignmentNum || String(booking.id)}
             isArabic={isArabic}
