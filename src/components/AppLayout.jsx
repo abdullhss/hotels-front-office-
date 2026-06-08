@@ -9,13 +9,18 @@ import {
   Menu,
   X,
   LogOut,
-  CalendarDays,
 } from 'lucide-react'
 
 import { cn } from '../lib/utils.js'
 
 const navItems = [
-  { key: 'dashboard', labelAr: 'لوحة التحكم', labelEn: 'Dashboard', path: '/', icon: LayoutDashboard },
+  {
+    key: 'monthly-report',
+    labelAr: 'الشاشه الرئيسية',
+    labelEn: 'Home',
+    path: '/monthly-report',
+    icon: LayoutDashboard,
+  },
   { key: 'bookings', labelAr: 'الحجوزات', labelEn: 'Bookings', path: '/bookings', icon: ClipboardList },
   { key: 'allocation', labelAr: 'التسكين', labelEn: 'Allocation', path: '/allocation', icon: Hotel },
   {
@@ -25,15 +30,13 @@ const navItems = [
     path: '/room-operations',
     icon: Hotel,
   },
-  { key: 'units', labelAr: 'الوحدات', labelEn: 'Units', path: '/units', icon: Hotel },
-  { key: 'unit-transfer', labelAr: 'نقل بين الوحدات', labelEn: 'Unit Transfer', path: '/unit-transfer', icon: Hotel },
-  { key: 'checkout', labelAr: 'المغادرة', labelEn: 'Check-out', path: '/check-out', icon: Users },
+  { key: 'units', labelAr: 'الغرف', labelEn: 'Rooms', path: '/units', icon: Hotel },
   {
-    key: 'monthly-report',
-    labelAr: 'التقرير الشهري',
-    labelEn: 'Monthly Report',
-    path: '/monthly-report',
-    icon: CalendarDays,
+    key: 'unit-transfer',
+    labelAr: 'النقل بين الغرف',
+    labelEn: 'Room Transfer',
+    path: '/unit-transfer',
+    icon: Hotel,
   },
   { key: 'customers', labelAr: 'العملاء', labelEn: 'Customers', path: '/customers', icon: Users },
 ]

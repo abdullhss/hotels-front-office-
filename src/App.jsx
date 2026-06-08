@@ -33,9 +33,9 @@ function App() {
   return (
     <>
       <Routes>
-        <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <Login />} />
+        <Route path="/login" element={isAuthenticated ? <Navigate to="/monthly-report" replace /> : <Login />} />
         <Route element={<AppLayout />}>
-          <Route path="/" element={guard(<DashboardPage />)} />
+          <Route path="/" element={<Navigate to="/monthly-report" replace />} />
           <Route path="/bookings" element={guard(<BookingsPage />)} />
           <Route path="/bookings/new" element={guard(<NewBookingPage />)} />
           <Route path="/allocation" element={guard(<AllocationPage />)} />
@@ -52,7 +52,7 @@ function App() {
           <Route path="/customers" element={guard(<CustomersPage />)} />
           <Route path="/customers/new" element={guard(<AddCustomerPage />)} />
         </Route>
-        <Route path="*" element={<Navigate to={isAuthenticated ? '/' : '/login'} replace />} />
+        <Route path="*" element={<Navigate to={isAuthenticated ? '/monthly-report' : '/login'} replace />} />
       </Routes>
       <Toaster richColors position="top-center" dir={isArabic ? 'rtl' : 'ltr'} />
     </>
