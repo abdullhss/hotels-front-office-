@@ -7,6 +7,12 @@ const resources = {
       common: {
         arabic: 'العربية',
         english: 'ENGLISH',
+        validation: {
+          nationalIdFormat: 'رقم الهوية يجب أن يبدأ بـ 1 أو 2 ويتكون من 14 رقمًا',
+          bookingDateTodayOrFuture: 'تاريخ الحجز يجب أن يكون اليوم أو تاريخًا لاحقًا',
+          arrivalDateTodayOrFuture: 'تاريخ الوصول يجب أن يكون اليوم أو تاريخًا لاحقًا',
+          nameLettersOnly: 'الاسم يجب أن يحتوي على حروف فقط',
+        },
       },
       login: {
         ariaLabel: 'تسجيل الدخول',
@@ -510,6 +516,12 @@ const resources = {
       common: {
         arabic: 'ARABIC',
         english: 'ENGLISH',
+        validation: {
+          nationalIdFormat: 'ID number must start with 1 or 2 and be 14 digits',
+          bookingDateTodayOrFuture: 'Booking date must be today or a future date',
+          arrivalDateTodayOrFuture: 'Arrival date must be today or a future date',
+          nameLettersOnly: 'Name must contain letters only',
+        },
       },
       login: {
         ariaLabel: 'Login',

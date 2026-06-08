@@ -1,3 +1,8 @@
+import { getNameLettersOnlyMessage, validateName } from '../lib/nameValidation.js'
+import {
+  getNationalIdNumberMessage,
+  validateNationalIdNumber,
+} from '../lib/nationalIdValidation.js'
 import { DoMultiTransaction, DoTransaction, executeProcedure } from '../services/apiServices'
 import { isDoTransactionSuccess } from './GetAgents.js'
 import { getAuthHotelId, resolveHotelId } from '../utils/authStorage.js'
@@ -6,6 +11,7 @@ import {
   compareIsoDates,
   formatDisplayDate,
   isArrivalBeforeDeparture,
+  isTodayOrFuture,
   toInputDateValue,
 } from '../pages/new-booking/dateUtils.js'
 
@@ -1291,6 +1297,13 @@ export function validateReservationBooking(
   }
   if (!String(form?.bookingDate ?? '').trim()) {
     errors.push(m.bookingDate ?? (isArabic ? 'تاريخ الحجز مطلوب' : 'Booking date is required'))
+  } else if (!isTodayOrFuture(form.bookingDate)) {
+    errors.push(
+      m.bookingDateTodayOrFuture ??
+        (isArabic
+          ? 'تاريخ الحجز يجب أن يكون اليوم أو تاريخًا لاحقًا'
+          : 'Booking date must be today or a future date')
+    )
   }
   if (!String(form?.reservationTypeId ?? '').trim()) {
     errors.push(
@@ -1303,11 +1316,24 @@ export function validateReservationBooking(
       errors.push(m.agent ?? (isArabic ? 'اختر الشركة' : 'Select a company'))
     }
   } else if (!Number(selectedPartyId)) {
-    if (!String(form?.fullName ?? '').trim()) {
-      errors.push(m.fullName ?? (isArabic ? 'الاسم الكامل مطلوب' : 'Full name is required'))
+    const nameCheck = validateName(form?.fullName)
+    if (!nameCheck.valid) {
+      if (nameCheck.errorKey === 'required') {
+        errors.push(m.fullName ?? (isArabic ? 'الاسم الكامل مطلوب' : 'Full name is required'))
+      } else {
+        errors.push(m.nameLettersOnly ?? getNameLettersOnlyMessage(isArabic))
+      }
     }
-    if (!String(form?.idNumber ?? '').trim()) {
-      errors.push(m.idNumber ?? (isArabic ? 'رقم الهوية مطلوب' : 'ID number is required'))
+    const idCheck = validateNationalIdNumber(form?.idNumber, form?.idType)
+    if (!idCheck.valid) {
+      if (idCheck.errorKey === 'required') {
+        errors.push(m.idNumber ?? (isArabic ? 'رقم الهوية مطلوب' : 'ID number is required'))
+      } else {
+        errors.push(
+          m.nationalIdFormat ??
+            getNationalIdNumberMessage(isArabic)
+        )
+      }
     }
     if (!String(form?.gender ?? '').trim()) {
       errors.push(m.gender ?? (isArabic ? 'الجنس مطلوب' : 'Gender is required'))
@@ -1328,6 +1354,13 @@ export function validateReservationBooking(
   }
   if (!stay.fromDate) {
     errors.push(m.fromDate ?? (isArabic ? 'تاريخ الوصول مطلوب' : 'Arrival date is required'))
+  } else if (!isTodayOrFuture(stay.fromDate)) {
+    errors.push(
+      m.arrivalDateTodayOrFuture ??
+        (isArabic
+          ? 'تاريخ الوصول يجب أن يكون اليوم أو تاريخًا لاحقًا'
+          : 'Arrival date must be today or a future date')
+    )
   }
   if (!stay.toDate) {
     errors.push(m.toDate ?? (isArabic ? 'تاريخ المغادرة مطلوب' : 'Departure date is required'))

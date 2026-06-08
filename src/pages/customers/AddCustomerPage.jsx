@@ -26,6 +26,13 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '../../components/ui/accordion.jsx'
+import { sanitizeNameInput, validateName } from '../../lib/nameValidation.js'
+import {
+  NATIONAL_ID_LENGTH,
+  sanitizeNationalIdInput,
+  shouldSanitizeAsNationalId,
+  validateNationalIdNumber,
+} from '../../lib/nationalIdValidation.js'
 import {
   AccordionChevron,
   FieldLabel,
@@ -148,12 +155,26 @@ function AddCustomerPage() {
   ]
 
   const handleSubmit = async () => {
-    if (!form.fullName?.trim()) {
-      toast.error(isArabic ? 'الاسم الكامل مطلوب' : 'Full name is required')
+    const nameCheck = validateName(form.fullName)
+    if (!nameCheck.valid) {
+      toast.error(
+        nameCheck.errorKey === 'required'
+          ? isArabic
+            ? 'الاسم الكامل مطلوب'
+            : 'Full name is required'
+          : t('common.validation.nameLettersOnly')
+      )
       return
     }
-    if (!form.idNumber?.trim()) {
-      toast.error(isArabic ? 'رقم الهوية مطلوب' : 'ID number is required')
+    const idCheck = validateNationalIdNumber(form.idNumber, form.idType)
+    if (!idCheck.valid) {
+      toast.error(
+        idCheck.errorKey === 'required'
+          ? isArabic
+            ? 'رقم الهوية مطلوب'
+            : 'ID number is required'
+          : t('common.validation.nationalIdFormat')
+      )
       return
     }
     if (!form.nationality) {
@@ -167,7 +188,7 @@ function AddCustomerPage() {
 
     setSaving(true)
     try {
-      const result = await saveCustomerFromForm(form, { idFile, wantedAction: 0 })
+      const result = await saveCustomerFromForm(form, { idFile, wantedAction: 0, isArabic })
       if (!result.success) {
         toast.error(result.errorMessage ?? (isArabic ? 'فشل الحفظ' : 'Save failed'))
         return
@@ -319,7 +340,7 @@ function AddCustomerPage() {
                 icon={User}
                 type="text"
                 value={form.fullName}
-                onChange={(e) => updateField('fullName', e.target.value)}
+                onChange={(e) => updateField('fullName', sanitizeNameInput(e.target.value))}
                 placeholder={t('newBooking.placeholders.fullName')}
               />
             </div>
@@ -350,8 +371,17 @@ function AddCustomerPage() {
               <IconInput
                 icon={IdCard}
                 type="text"
+                inputMode={shouldSanitizeAsNationalId(form.idType) ? 'numeric' : 'text'}
+                maxLength={shouldSanitizeAsNationalId(form.idType) ? NATIONAL_ID_LENGTH : undefined}
                 value={form.idNumber}
-                onChange={(e) => updateField('idNumber', e.target.value)}
+                onChange={(e) =>
+                  updateField(
+                    'idNumber',
+                    shouldSanitizeAsNationalId(form.idType)
+                      ? sanitizeNationalIdInput(e.target.value)
+                      : e.target.value
+                  )
+                }
                 placeholder={t('newBooking.placeholders.idNumber')}
               />
             </div>

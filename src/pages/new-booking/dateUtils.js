@@ -36,6 +36,20 @@ export function compareIsoDates(a, b) {
   return 0
 }
 
+export function getTodayIso() {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+export function isTodayOrFuture(value) {
+  const iso = toInputDateValue(value)
+  if (!iso) return false
+  return compareIsoDates(iso, getTodayIso()) >= 0
+}
+
 export function isArrivalBeforeDeparture(arrival, departure) {
   return compareIsoDates(arrival, departure) < 0
 }

@@ -1,4 +1,9 @@
 import { useEffect, useState } from 'react'
+import { getNameLettersOnlyMessage, validateName } from '../lib/nameValidation.js'
+import {
+  getNationalIdNumberMessage,
+  validateNationalIdNumber,
+} from '../lib/nationalIdValidation.js'
 import { DoTransaction, executeProcedure } from '../services/apiServices'
 import { HandelFile } from '../services/HandelFile.js'
 import { isDoTransactionSuccess } from './GetAgents.js'
@@ -388,7 +393,24 @@ export const saveCustomer = async ({
   return DoTransaction(CUSTOMER_TABLE_NAME, columnsValues, wantedAction, CUSTOMER_COLUMNS_NAMES)
 }
 
-export async function saveCustomerFromForm(form, { id = 0, idFile = null, wantedAction = 0 } = {}) {
+export async function saveCustomerFromForm(
+  form,
+  { id = 0, idFile = null, wantedAction = 0, isArabic = true } = {}
+) {
+  const idCheck = validateNationalIdNumber(form?.idNumber, form?.idType)
+  if (!idCheck.valid) {
+    if (idCheck.errorKey === 'required') {
+      return {
+        success: false,
+        errorMessage: isArabic ? 'رقم الهوية مطلوب' : 'ID number is required',
+      }
+    }
+    return {
+      success: false,
+      errorMessage: getNationalIdNumberMessage(isArabic),
+    }
+  }
+
   let idNumAttach = ''
   let passportNumAttach = ''
   let presidenceNumAttach = ''
@@ -401,6 +423,20 @@ export async function saveCustomerFromForm(form, { id = 0, idFile = null, wanted
     if (form.idType === 'passport') passportNumAttach = up.fileId
     else if (form.idType === 'residency') presidenceNumAttach = up.fileId
     else idNumAttach = up.fileId
+  }
+
+  const nameCheck = validateName(form?.fullName)
+  if (!nameCheck.valid) {
+    if (nameCheck.errorKey === 'required') {
+      return {
+        success: false,
+        errorMessage: isArabic ? 'الاسم الكامل مطلوب' : 'Full name is required',
+      }
+    }
+    return {
+      success: false,
+      errorMessage: getNameLettersOnlyMessage(isArabic),
+    }
   }
 
   const genderId = GENDER_IDS[form.gender] ?? 0

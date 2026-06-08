@@ -40,7 +40,7 @@ import {
   IconSelect,
   SectionHeader,
 } from './components/BookingFormFields.jsx'
-import { toInputDateValue } from './dateUtils.js'
+import { getTodayIso, isTodayOrFuture, toInputDateValue } from './dateUtils.js'
 import { STEP_ORDER } from './bookingData.js'
 import useAgentsSimple, { getAgentDetails } from '../../Hooks/GetAgents.js'
 import useCustomersSimple, { getCustomerDetails } from '../../Hooks/GetCustomers.js'
@@ -55,6 +55,12 @@ import {
   customerRowToBookingForm,
   EMPTY_FORM,
 } from './bookingData.js'
+import { sanitizeNameInput } from '../../lib/nameValidation.js'
+import {
+  NATIONAL_ID_LENGTH,
+  sanitizeNationalIdInput,
+  shouldSanitizeAsNationalId,
+} from '../../lib/nationalIdValidation.js'
 import { iconInputClass, inputClass, panelClass } from './bookingStyles.js'
 import { cn } from '../../lib/utils'
 
@@ -181,8 +187,14 @@ function NewBookingPage() {
         : { title: t('newBooking.title'), subtitle: t('newBooking.subtitle') }
 
   const handleNext = () => {
-    if (currentStep === 'individuals') setCurrentStep('booking')
-    else if (currentStep === 'booking') {
+    if (currentStep === 'individuals') {
+      const bookingDate = toInputDateValue(form.bookingDate)
+      if (bookingDate && !isTodayOrFuture(bookingDate)) {
+        toast.error(t('common.validation.bookingDateTodayOrFuture'))
+        return
+      }
+      setCurrentStep('booking')
+    } else if (currentStep === 'booking') {
       if (stayGrandTotal <= 0) {
         toast.error(
           isArabic
@@ -414,6 +426,7 @@ function NewBookingPage() {
               <FieldLabel required>{t('newBooking.fields.bookingDate')}</FieldLabel>
               <IconDateInput
                 value={toInputDateValue(form.bookingDate)}
+                min={getTodayIso()}
                 onChange={(e) => updateField('bookingDate', e.target.value)}
               />
             </div>
@@ -447,6 +460,7 @@ function NewBookingPage() {
         </FormRow>
       </div>
 
+      {!isCompanies && !hasSelectedExisting ? (
       <div className={panelClass}>
         <SectionHeader
           icon={User}
@@ -462,7 +476,7 @@ function NewBookingPage() {
                 icon={User}
                 type="text"
                 value={form.fullName}
-                onChange={(e) => updateField('fullName', e.target.value)}
+                onChange={(e) => updateField('fullName', sanitizeNameInput(e.target.value))}
                 placeholder={t('newBooking.placeholders.fullName')}
               />
             </div>
@@ -478,7 +492,7 @@ function NewBookingPage() {
               />
             </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
               <FieldLabel required>{t('newBooking.fields.idType')}</FieldLabel>
               <IconSelect
@@ -488,6 +502,7 @@ function NewBookingPage() {
                 <option value="">{t('newBooking.placeholders.idType')}</option>
                 <option value="national_id">{isArabic ? 'بطاقة وطنية' : 'National ID'}</option>
                 <option value="passport">{isArabic ? 'جواز سفر' : 'Passport'}</option>
+                <option value="residency">{isArabic ? 'إقامة' : 'Residency'}</option>
               </IconSelect>
             </div>
             <div>
@@ -495,15 +510,22 @@ function NewBookingPage() {
               <IconInput
                 icon={IdCard}
                 type="text"
+                inputMode={shouldSanitizeAsNationalId(form.idType) ? 'numeric' : 'text'}
+                maxLength={shouldSanitizeAsNationalId(form.idType) ? NATIONAL_ID_LENGTH : undefined}
                 value={form.idNumber}
-                onChange={(e) => updateField('idNumber', e.target.value)}
+                onChange={(e) =>
+                  updateField(
+                    'idNumber',
+                    shouldSanitizeAsNationalId(form.idType)
+                      ? sanitizeNationalIdInput(e.target.value)
+                      : e.target.value
+                  )
+                }
                 placeholder={t('newBooking.placeholders.idNumber')}
               />
             </div>
             <div>
-              <FieldLabel required={!hasSelectedExisting && !isCompanies}>
-                {t('newBooking.fields.idPhoto')}
-              </FieldLabel>
+              <FieldLabel required>{t('newBooking.fields.idPhoto')}</FieldLabel>
               <input
                 ref={idFileInputRef}
                 type="file"
@@ -521,13 +543,6 @@ function NewBookingPage() {
                   {idFileName || t('newBooking.fields.uploadId')}
                 </span>
               </button>
-            </div>
-            <div>
-              <FieldLabel required>{t('newBooking.fields.birthDate')}</FieldLabel>
-              <IconDateInput
-                value={toInputDateValue(form.birthDate)}
-                onChange={(e) => updateField('birthDate', e.target.value)}
-              />
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -591,6 +606,7 @@ function NewBookingPage() {
           </div>
         </div>
       </div>
+      ) : null}
 
       <Accordion type="multiple" defaultValue={['additional', 'extra']} className="space-y-4">
         <AccordionItem value="additional" className={cn(panelClass, 'border-b-0')}>
@@ -688,6 +704,7 @@ function NewBookingPage() {
           stayRows={stayRows}
           onGrandTotalChange={setStayGrandTotal}
           onStayRowsChange={setStayRows}
+          enforceMinToday
         />
       )}
 

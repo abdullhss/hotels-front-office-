@@ -178,7 +178,6 @@ function CustomersPage() {
             { uid: 'bookingsCount', name: 'عدد الحجوزات' },
             { uid: 'lastVisit', name: 'آخر زيارة' },
             { uid: 'status', name: 'الحالة' },
-            { uid: 'actions', name: 'الاجراءات' },
           ]
         : [
             { uid: 'customer', name: 'Customer' },
@@ -190,7 +189,6 @@ function CustomersPage() {
             { uid: 'bookingsCount', name: 'Bookings' },
             { uid: 'lastVisit', name: 'Last visit' },
             { uid: 'status', name: 'Status' },
-            { uid: 'actions', name: 'Actions' },
           ],
     [isArabic]
   )
@@ -300,14 +298,6 @@ function CustomersPage() {
     [isArabic]
   )
 
-  const actionsConfig = useMemo(
-    () => [
-      { label: isArabic ? 'عرض' : 'View', onClick: () => {} },
-      { label: isArabic ? 'تعديل' : 'Edit', onClick: () => {} },
-    ],
-    [isArabic]
-  )
-
   const selectClass =
     'w-full appearance-none rounded-xl border border-[#e2e8f0] bg-[#f8fafc] py-3 ps-3 pe-9 text-sm text-[#374151] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-primary'
 
@@ -403,7 +393,6 @@ function CustomersPage() {
           data={tableData.rows}
           total={tableData.total}
           fetchApi={fetchApi}
-          actionsConfig={actionsConfig}
           hideSearch
           isLoading={loading}
           rowsPerPageDefault={10}

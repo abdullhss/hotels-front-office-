@@ -13,6 +13,13 @@ import {
   X,
 } from 'lucide-react'
 import useNationalities from '../../../Hooks/GetNationalities.js'
+import { sanitizeNameInput, validateName } from '../../../lib/nameValidation.js'
+import {
+  NATIONAL_ID_LENGTH,
+  sanitizeNationalIdInput,
+  shouldSanitizeAsNationalId,
+  validateNationalIdNumber,
+} from '../../../lib/nationalIdValidation.js'
 import {
   FieldLabel,
   IconDateInput,
@@ -68,9 +75,14 @@ function CheckInGuestDataModal({ open, roomLabel, initialGuests, onClose, onSave
   }
 
   const handleSave = () => {
-    const invalid = guests.find((g) => !g.fullName?.trim())
-    if (invalid) {
+    const missingName = guests.find((g) => !String(g.fullName ?? '').trim())
+    if (missingName) {
       toast.error(t('allocation.checkInPage.guestModal.fullNameRequired'))
+      return
+    }
+    const invalidName = guests.find((g) => !validateName(g.fullName).valid)
+    if (invalidName) {
+      toast.error(t('common.validation.nameLettersOnly'))
       return
     }
     const missingNationality = guests.find((g) => !g.nationality)
@@ -86,6 +98,14 @@ function CheckInGuestDataModal({ open, roomLabel, initialGuests, onClose, onSave
     const missingBirth = guests.find((g) => !g.birthDate)
     if (missingBirth) {
       toast.error(t('allocation.checkInPage.guestModal.birthDateRequired'))
+      return
+    }
+    const invalidId = guests.find((g) => {
+      if (!String(g.idNumber ?? '').trim()) return false
+      return !validateNationalIdNumber(g.idNumber, g.idType).valid
+    })
+    if (invalidId) {
+      toast.error(t('common.validation.nationalIdFormat'))
       return
     }
 
@@ -168,7 +188,9 @@ function CheckInGuestDataModal({ open, roomLabel, initialGuests, onClose, onSave
                     icon={User}
                     type="text"
                     value={guest.fullName}
-                    onChange={(e) => updateGuest(guest.id, 'fullName', e.target.value)}
+                    onChange={(e) =>
+                      updateGuest(guest.id, 'fullName', sanitizeNameInput(e.target.value))
+                    }
                     placeholder={t('allocation.checkInPage.guestModal.fullNamePlaceholder')}
                   />
                 </div>
@@ -192,8 +214,20 @@ function CheckInGuestDataModal({ open, roomLabel, initialGuests, onClose, onSave
                     <IconInput
                       icon={IdCard}
                       type="text"
+                      inputMode={shouldSanitizeAsNationalId(guest.idType) ? 'numeric' : 'text'}
+                      maxLength={
+                        shouldSanitizeAsNationalId(guest.idType) ? NATIONAL_ID_LENGTH : undefined
+                      }
                       value={guest.idNumber}
-                      onChange={(e) => updateGuest(guest.id, 'idNumber', e.target.value)}
+                      onChange={(e) =>
+                        updateGuest(
+                          guest.id,
+                          'idNumber',
+                          shouldSanitizeAsNationalId(guest.idType)
+                            ? sanitizeNationalIdInput(e.target.value)
+                            : e.target.value
+                        )
+                      }
                       placeholder={t('newBooking.placeholders.idNumber')}
                     />
                   </div>

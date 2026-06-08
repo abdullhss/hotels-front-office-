@@ -11,7 +11,9 @@ import {
   computeNightsCount,
   computeStayLineTotal,
   formatDisplayDate,
+  getTodayIso,
   isArrivalBeforeDeparture,
+  isTodayOrFuture,
   toInputDateValue,
 } from '../dateUtils.js'
 
@@ -92,6 +94,7 @@ function NewBookingStayStep({
   maxRows = null,
   initialDraft = null,
   singleUnitMode = false,
+  enforceMinToday = false,
 }) {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language === 'ar'
@@ -207,6 +210,10 @@ function NewBookingStayStep({
 
     if (!arrival) {
       toast.error(isArabic ? 'تاريخ الوصول مطلوب' : 'Arrival date is required')
+      return
+    }
+    if (enforceMinToday && !isTodayOrFuture(arrival)) {
+      toast.error(t('common.validation.arrivalDateTodayOrFuture'))
       return
     }
     if (!departure) {
@@ -352,6 +359,7 @@ function NewBookingStayStep({
               <FieldLabel required>{t('newBooking.stay.arrivalDate')}</FieldLabel>
               <IconDateInput
                 value={toInputDateValue(fixedArrivalDate ?? draft.arrivalDate)}
+                min={enforceMinToday && !arrivalLocked ? getTodayIso() : undefined}
                 disabled={arrivalLocked}
                 onChange={(e) => {
                   if (arrivalLocked) return
