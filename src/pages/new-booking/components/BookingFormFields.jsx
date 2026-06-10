@@ -1,4 +1,5 @@
-import { Calendar, ChevronDown } from 'lucide-react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { Calendar, ChevronDown, Search, X } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { formRowClass, iconInputClass, selectClass } from '../bookingStyles.js'
 
@@ -55,6 +56,151 @@ export function IconSelect({ icon: Icon, children, className, ...props }) {
       ) : (
         <ChevronDown className={selectIconClass} aria-hidden />
       )}
+    </div>
+  )
+}
+
+export function SearchableSelect({
+  value = '',
+  onChange,
+  options = [],
+  placeholder = '',
+  disabled = false,
+  loading = false,
+  loadingLabel = 'Loading…',
+  noResultsLabel = 'No results',
+  className,
+}) {
+  const listboxId = useId()
+  const rootRef = useRef(null)
+  const inputRef = useRef(null)
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+
+  const selectedOption = options.find((opt) => String(opt.value) === String(value))
+  const normalizedQuery = query.trim().toLowerCase()
+  const filteredOptions = normalizedQuery
+    ? options.filter((opt) => opt.label.toLowerCase().includes(normalizedQuery))
+    : options
+
+  const displayValue = open ? query : selectedOption?.label ?? ''
+
+  useEffect(() => {
+    if (!open) return undefined
+    const handlePointerDown = (e) => {
+      if (!rootRef.current?.contains(e.target)) {
+        setOpen(false)
+        setQuery('')
+      }
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [open])
+
+  const handleFocus = () => {
+    if (disabled || loading) return
+    setOpen(true)
+    setQuery(selectedOption?.label ?? '')
+    requestAnimationFrame(() => inputRef.current?.select())
+  }
+
+  const handleInputChange = (e) => {
+    setQuery(e.target.value)
+    if (!open) setOpen(true)
+  }
+
+  const handleSelect = (optionValue) => {
+    onChange?.(optionValue)
+    setQuery('')
+    setOpen(false)
+    inputRef.current?.blur()
+  }
+
+  const handleClear = () => {
+    onChange?.('')
+    setQuery('')
+    setOpen(false)
+    inputRef.current?.focus()
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape') {
+      setQuery('')
+      setOpen(false)
+      inputRef.current?.blur()
+      return
+    }
+    if (e.key === 'Enter' && open && filteredOptions.length > 0) {
+      e.preventDefault()
+      handleSelect(filteredOptions[0].value)
+    }
+  }
+
+  return (
+    <div ref={rootRef} className={cn('relative', className)}>
+      <Search className={fieldIconClass} aria-hidden />
+      <input
+        ref={inputRef}
+        type="text"
+        role="combobox"
+        aria-expanded={open}
+        aria-controls={listboxId}
+        aria-autocomplete="list"
+        className={cn(iconInputClass, 'pe-16')}
+        value={displayValue}
+        onChange={handleInputChange}
+        onFocus={handleFocus}
+        onKeyDown={handleKeyDown}
+        placeholder={loading ? loadingLabel : placeholder}
+        disabled={disabled || loading}
+        autoComplete="off"
+      />
+      {value && !disabled && !loading ? (
+        <button
+          type="button"
+          onClick={handleClear}
+          className="absolute end-9 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-[#9ca3af] transition-colors hover:bg-[#f1f5f9] hover:text-[#6b7280]"
+          aria-label="Clear"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      ) : null}
+      <ChevronDown
+        className={cn(selectIconClass, open && 'rotate-180 transition-transform')}
+        aria-hidden
+      />
+      {open && !disabled && !loading ? (
+        <ul
+          id={listboxId}
+          role="listbox"
+          className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-[#e2e8f0] bg-white py-1 shadow-lg"
+        >
+          {filteredOptions.length === 0 ? (
+            <li className="px-3 py-2.5 text-sm text-[#9ca3af]">{noResultsLabel}</li>
+          ) : (
+            filteredOptions.map((opt) => {
+              const isSelected = String(opt.value) === String(value)
+              return (
+                <li key={opt.value} role="option" aria-selected={isSelected}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleSelect(opt.value)}
+                    className={cn(
+                      'w-full px-3 py-2.5 text-start text-sm transition-colors hover:bg-[#f8fafc]',
+                      isSelected
+                        ? 'bg-[#f0fdf4] font-medium text-[#166534]'
+                        : 'text-[#374151]'
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                </li>
+              )
+            })
+          )}
+        </ul>
+      ) : null}
     </div>
   )
 }

@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -38,6 +38,7 @@ import {
   IconDateInput,
   IconInput,
   IconSelect,
+  SearchableSelect,
   SectionHeader,
 } from './components/BookingFormFields.jsx'
 import { getTodayIso, isTodayOrFuture, toInputDateValue } from './dateUtils.js'
@@ -46,6 +47,7 @@ import useAgentsSimple, { getAgentDetails } from '../../Hooks/GetAgents.js'
 import useCustomersSimple, { getCustomerDetails } from '../../Hooks/GetCustomers.js'
 import useNationalities from '../../Hooks/GetNationalities.js'
 import useBookingTypes from '../../Hooks/GetBookingTypes.js'
+import useUnitTitles from '../../Hooks/GetUnitTitles.js'
 import {
   saveReservationFromBooking,
   validateReservationBooking,
@@ -63,17 +65,22 @@ import {
 } from '../../lib/nationalIdValidation.js'
 import { iconInputClass, inputClass, panelClass } from './bookingStyles.js'
 import { cn } from '../../lib/utils'
+import { buildStayRowsFromMonthlyReport } from '../monthly-report/monthlyReportBookingUtils.js'
 
 
 function NewBookingPage() {
   const { t, i18n } = useTranslation()
+  const location = useLocation()
   const navigate = useNavigate()
   const isArabic = i18n.language === 'ar'
   const { customers, loading: customersLoading } = useCustomersSimple()
   const { agents, loading: agentsLoading } = useAgentsSimple()
   const { nationalities, loading: nationalitiesLoading } = useNationalities()
   const { bookingTypes, loading: bookingTypesLoading } = useBookingTypes()
+  const { unitTitles } = useUnitTitles()
   const idFileInputRef = useRef(null)
+  const monthlyDraftAppliedRef = useRef(false)
+  const monthlyStayRowsAppliedRef = useRef(false)
 
   const [bookingType, setBookingType] = useState('client')
   const [searchQuery, setSearchQuery] = useState('')
@@ -88,6 +95,44 @@ function NewBookingPage() {
   const [downPayment, setDownPayment] = useState('')
   const [savingReservation, setSavingReservation] = useState(false)
   const [currentStep, setCurrentStep] = useState('individuals')
+  const [monthlyReportDraft, setMonthlyReportDraft] = useState(null)
+
+  useEffect(() => {
+    const state = location.state
+    if (!state?.fromMonthlyReport) return
+
+    if (!monthlyDraftAppliedRef.current) {
+      monthlyDraftAppliedRef.current = true
+      setMonthlyReportDraft(state.draft ?? null)
+
+      if (state.draft?.fromDate) {
+        setForm((prev) => ({
+          ...prev,
+          bookingDate: toInputDateValue(state.draft.fromDate),
+        }))
+      }
+    }
+
+    if (monthlyStayRowsAppliedRef.current) return
+
+    if (state.stayRows?.length) {
+      monthlyStayRowsAppliedRef.current = true
+      setStayRows(state.stayRows)
+      setStayGrandTotal(state.stayRows.reduce((sum, row) => sum + (row.total || 0), 0))
+      return
+    }
+
+    if (state.selectedUnits?.length && unitTitles.length > 0) {
+      monthlyStayRowsAppliedRef.current = true
+      const rows = buildStayRowsFromMonthlyReport({
+        draft: state.draft,
+        selectedUnits: state.selectedUnits,
+        unitTitles,
+      })
+      setStayRows(rows)
+      setStayGrandTotal(rows.reduce((sum, row) => sum + (row.total || 0), 0))
+    }
+  }, [location.state, unitTitles])
 
   const isCompanies = bookingType === 'companies'
   const existingOptions = (isCompanies ? agents : customers).filter((item) => item.id > 0)
@@ -126,8 +171,7 @@ function NewBookingPage() {
     return phone ? `${name} — ${phone}` : name
   }
 
-  const handleExistingClientChange = async (e) => {
-    const id = e.target.value
+  const handleExistingClientChange = async (id) => {
     setSelectedExistingClientId(id)
     setLoadedExistingName('')
     if (!id) {
@@ -354,30 +398,23 @@ function NewBookingPage() {
           hint={t('newBooking.hints.existingClient')}
           accent="bg-[#e0f2fe] text-[#0284c7]"
         >
-          <IconSelect
+          <SearchableSelect
             value={selectedExistingClientId}
             onChange={handleExistingClientChange}
             disabled={existingListLoading || loadingExistingDetails}
+            loading={existingListLoading || loadingExistingDetails}
+            loadingLabel={isArabic ? 'جاري التحميل...' : 'Loading…'}
+            placeholder={t('newBooking.placeholders.existingClient')}
+            noResultsLabel={isArabic ? 'لا توجد نتائج' : 'No results'}
+            options={existingOptions.map((item) => ({
+              value: String(item.id),
+              label: formatExistingOptionLabel(item),
+            }))}
             className={cn(
               selectedExistingClientId &&
-                '[&_select]:border-[#86efac] [&_select]:ring-2 [&_select]:ring-[#bbf7d0]'
+                '[&_input]:border-[#86efac] [&_input]:ring-2 [&_input]:ring-[#bbf7d0]'
             )}
-          >
-            <option value="">
-              {existingListLoading || loadingExistingDetails
-                ? isArabic
-                  ? 'جاري التحميل...'
-                  : 'Loading…'
-                : isCompanies
-                  ? t('newBooking.placeholders.existingClient')
-                  : t('newBooking.placeholders.existingClient')}
-            </option>
-            {existingOptions.map((item) => (
-              <option key={item.id} value={String(item.id)}>
-                {formatExistingOptionLabel(item)}
-              </option>
-            ))}
-          </IconSelect>
+          />
 
           {hasSelectedExisting ? (
             <div className="mt-3 flex items-center gap-3 rounded-xl border border-[#bbf7d0] bg-[#f0fdf4] px-3 py-2.5">
@@ -705,6 +742,18 @@ function NewBookingPage() {
           onGrandTotalChange={setStayGrandTotal}
           onStayRowsChange={setStayRows}
           enforceMinToday
+          fixedArrivalDate={monthlyReportDraft?.fromDate}
+          fixedDepartureDate={monthlyReportDraft?.toDate}
+          initialDraft={
+            monthlyReportDraft
+              ? {
+                  adults: monthlyReportDraft.adults,
+                  children: monthlyReportDraft.children,
+                  arrivalDate: monthlyReportDraft.fromDate,
+                  departureDate: monthlyReportDraft.toDate,
+                }
+              : null
+          }
         />
       )}
 
