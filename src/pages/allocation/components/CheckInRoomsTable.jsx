@@ -6,6 +6,12 @@ import CheckInGuestDataModal from './CheckInGuestDataModal.jsx'
 import RoomOperationsGuestsModal from '../../room-operations/components/RoomOperationsGuestsModal.jsx'
 import { getAvailableRoomsForReservationUnit } from '../../../Hooks/GetReservations.js'
 
+function roomsMeetingCapacity(rooms, adults, children) {
+  const required = (Number(adults) || 0) + (Number(children) || 0)
+  if (required <= 0) return rooms
+  return rooms.filter((r) => (Number(r.maxPersonCount) || 0) >= required)
+}
+
 function CheckInRoomsTable({
   booking,
   isArabic,
@@ -96,7 +102,7 @@ function CheckInRoomsTable({
             return
           }
 
-          let rooms = result.rooms ?? []
+          let rooms = roomsMeetingCapacity(result.rooms ?? [], room.adults, room.children)
           const assignedId = Number(room.hotelUnitId) || 0
           if (assignedId > 0 && !rooms.some((r) => Number(r.id) === assignedId)) {
             rooms = [
@@ -122,6 +128,24 @@ function CheckInRoomsTable({
       ignore = true
     }
   }, [roomRows, reservationId, hotelId, t, isRoomOperations])
+
+  useEffect(() => {
+    if (isRoomOperations) return
+    setRoomNumbers((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const room of roomRows) {
+        const selected = Number(prev[room.id]) || 0
+        if (!selected) continue
+        const available = availableRoomsByRow[room.id] ?? []
+        if (!available.some((r) => Number(r.id) === selected)) {
+          next[room.id] = ''
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [availableRoomsByRow, roomRows, isRoomOperations])
 
   useEffect(() => {
     if (!initialRoomNumbers) return
