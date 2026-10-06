@@ -12,6 +12,8 @@ import {
 } from 'lucide-react'
 
 import { cn } from '../lib/utils.js'
+import { clearSession } from '../utils/auth/sessionManager.js'
+import { stopTokenRefreshScheduler } from '../utils/auth/tokenRefreshManager.js'
 
 const navItems = [
   {
@@ -101,10 +103,8 @@ function AppLayout() {
   const logoutLabel = isArabic ? 'تسجيل الخروج' : 'Logout'
 
   const handleLogout = () => {
-    localStorage.removeItem('isAuthenticated')
-    localStorage.removeItem('SessionID')
-    localStorage.removeItem('userData')
-    localStorage.removeItem('userRole')
+    stopTokenRefreshScheduler()
+    clearSession()
     navigate('/login', { replace: true })
   }
 

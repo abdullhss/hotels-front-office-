@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next'
 import { Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { checkLogin } from '../services/apiServices'
+import { saveSession } from '../utils/auth/sessionManager'
+import { startTokenRefreshScheduler } from '../utils/auth/tokenRefreshManager'
 
 function Login() {
   const { t, i18n } = useTranslation()
@@ -14,6 +16,7 @@ function Login() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (event) => {
@@ -49,6 +52,9 @@ function Login() {
       toast.error(result?.message || t('login.invalidCredentials'))
       return
     }
+
+    saveSession({ userData: parsedUserData, ...result?.auth }, rememberMe)
+    if (result?.auth?.jwtToken && result?.auth?.refreshToken) startTokenRefreshScheduler()
 
     localStorage.setItem('isAuthenticated', 'true')
     localStorage.setItem('userData', JSON.stringify(parsedUserData))
@@ -127,7 +133,12 @@ function Login() {
 
           <div className="mb-[6px] mt-[2px] flex items-center justify-between text-[0.9rem]">
             <label className="flex items-center gap-1.5">
-              <input type="checkbox" className="h-[15px] w-[15px]" />
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(event) => setRememberMe(event.target.checked)}
+                className="h-[15px] w-[15px]"
+              />
               <span>{t('login.rememberMe')}</span>
             </label>
             <a

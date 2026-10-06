@@ -1,0 +1,146 @@
+PROCEDURES & TABLES USED BY THE HOTELS FRONT-OFFICE APP
+=====================================================
+Purpose: list of every stored procedure and table the frontend calls, so the
+backend team can grant this app's DataToken ("Hotels") / users access to them.
+
+NOTE: names are sent AES-encrypted (same scheme as the archive project). The
+plaintext names exist only server-side, so each entry gives the ENCRYPTED value
+exactly as sent, plus the constant name / file / columns to help identify it.
+Decrypt server-side to get the real procedure / table name.
+
+Backend base URL : see public/config.json ("url"); DataToken: "Hotels"
+
+--------------------------------------------------------------------------------
+0) ENDPOINTS USED
+--------------------------------------------------------------------------------
+Checklogin                 login (ProcedureName sent as "" ; ParametersValue = Email#Pass#$????#1)
+RefreshToken               JWT refresh
+ExecuteProcedureManager    all stored procedures in section 1
+DoTransactionManager       add / edit / delete rows on tables in section 2
+DoMultiTransactionManager  multi-table add (reservation + units, unit assignment + persons)
+UploadFileEnc / UploadFileWebSite / DownloadFileEnc   file upload / delete / download
+
+--------------------------------------------------------------------------------
+1) STORED PROCEDURES  (ExecuteProcedureManager -> ProcedureName)
+--------------------------------------------------------------------------------
+File                              | Constant                                      | Encrypted value
+GetAgents.js                      | GET_AGENTS_PROCEDURE                          | IcSUPwDY6gxZhW1Xj7qpGA==
+GetAgents.js                      | GET_AGENT_DETAILS_PROCEDURE                   | nnLAFXzhyLQzuj/3gQiBnQ==
+GetAvailableReservationUnits.js   | GET_AVAILABLE_RESERVATION_UNITS_PROCEDURE     | YVUU47P3dlraloAMRyrZCKZdA1gux9KH1tF5tbz0neICZBUbtqXKYwa0FZcGSR9D
+GetBookingTypes.js                | GET_BOOKING_TYPES_PROCEDURE                   | vwoq8jF4ejiOYtATCC6G3ZXv5+/yyRIUKSwHIBa16TQ=
+GetCities.js                      | GET_CITIES_PROCEDURE                          | EtvTP9aYvLrqxr2EeWFhrA==
+GetCountries.js                   | (inline literal)                              | Bp02zhHaygo2MoX9CHb+vA==
+GetCustomers.js                   | GET_CUSTOMERS_PROCEDURE                       | ihIfdD5vRL7vZUbbCCBxKAsRdZJZBB0hf3V7Gd52SJ0=
+GetEmployees.js                   | GET_EMPLOYEE_PROCEDURE                        | kWPTO4yA1SqfGAmtpqSvMiAbPz+cnwJFTJMWIqPD6Ec=
+GetEmployees.js                   | GET_EMPLOYEE_DETAILS_PROCEDURE                | kWPTO4yA1SqfGAmtpqSvMg4XtzgX8Qhf8984tAUVIKk=
+GetExtraFeatures.js               | GET_EXTRA_FEATURES_PROCEDURE                  | VVVnlyM1kAnzZMTaWHs7m5ulHPHveiTXJHvow1iFCO8=
+GetHotelData.js                   | GET_HOTEL_DETAILS_PROCEDURE                   | 4DRAEi6rPpD2jIUjBd5oyMjt8IBXQBLuV9tIaKP5oPU=
+GetHotelData.js                   | GET_HOTEL_FEATURES_PROCEDURE                  | KzoGCaafC5QP7ldZN9RZrr4uTYL6DBoOIjMRfhJWxaU=
+GetHotelSections.js               | GET_HOTEL_SECTION_PROCEDURE                   | VIlduaKaE0vwmEySXFdvMF1wxBx4LhVoxJOcW/7DAf8=
+GetHotelServices.js               | GET_HOTEL_SERVICE_PROCEDURE                   | VIlduaKaE0vwmEySXFdvMK1KDrBXgrO6YGOzFDM6Y0Q=
+GetMonthlyRoomsReport.js          | MONTHLY_ROOMS_REPORT_PROCEDURE                | HnC0WnzS1va393I8ZCldm+gEkklCHaWNaeE4dOUCJpc=
+GetNationalities.js               | GET_NATIONALITIES_PROCEDURE                   | eJjIV7ynzs/m0INIgnx6Dw==
+GetPermissionGroups.js            | GET_GROUP_PERMISSION_DETAILS_PROCEDURE        | rek2ydFmPKA2UVKCFHRxXwXAWiCRjiJsMw26Iz1jfJo=
+GetPermissionGroups.js            | GET_HOTEL_GROUP_PROCEDURE                     | EHxewRDc1hdah34/BYd88H8JoIa0Dd0JEVG/Co1BAx8=
+GetPermissionGroups.js            | GET_ROLES_PROCEDURE                           | vkviluKUW0awc++QVlGtQQ==
+GetReservations.js                | LIST_RESERVATIONS_PROCEDURE                   | FJlxEMmpZTAV9nftZApHGnsiDJk+FL4DKOBOXxJf0p4=
+GetReservations.js                | GET_RESERVATION_DETAILS_PROCEDURE             | FJlxEMmpZTAV9nftZApHGgvcdAIR6Vkt10kBcufW0js=
+GetReservations.js                | SEARCH_FOR_RESERVATION_PROCEDURE              | h6uuUAX0zwHfm21Jp2Rvt/kmz0u7+7fHR7Ug6X6HWO8=
+GetReservations.js                | SEARCH_FOR_UNIT_ASSIGNMENT_PROCEDURE          | t0LEY4nR/D4eyyem5kqoTMDfGoF/jfj0b9MwjjCoqkw=
+GetReservations.js                | GET_RESERVATION_INVOICE_PROCEDURE             | FJlxEMmpZTAV9nftZApHGt0WJQRiv4ZMd8oqFLzRp+U=
+GetReservations.js                | GET_AVAILABLE_ROOMS_PROCEDURE                 | YVUU47P3dlraloAMRyrZCJpS94lWg96d5cvNxaJ4UiM=
+GetRoomsStatus.js                 | GET_ROOMS_STATUS_PROCEDURE                    | BRfc788n7ATIJwBjRuCVi2ipmPuHI2Mio9O7Im+c1I4=
+GetUnitStatuses.js                | GET_UNIT_STATUSES_PROCEDURE                   | GVYRYYuIafxYGqVDOg974A==
+GetUnitTitles.js                  | GET_UNIT_NAMES_PROCEDURE                      | DOT2sMVxwbgjUdxf6DFH4g==
+
+Plaintext names given in source comments (GetReservations.js):
+  SEARCH_FOR_RESERVATION_PROCEDURE        = Hotel_SearchForReservation
+  SEARCH_FOR_UNIT_ASSIGNMENT_PROCEDURE    = Hotel_SearchForUnitAssignment
+  GET_RESERVATION_INVOICE_PROCEDURE       = Hotel_GetReservationInvoice
+  GET_AVAILABLE_ROOMS_PROCEDURE           = Hotel_GetAvailableRooms
+
+--------------------------------------------------------------------------------
+2) TABLES  (DoTransactionManager / DoMultiTransactionManager -> TableName)
+   Actions: WantedAction 0 = Add, 1 = Edit, 2 = Delete (by Id)
+--------------------------------------------------------------------------------
+AGENT_TABLE_NAME  (GetAgents.js)
+  Encrypted: 92tKXvc7U1xyYi5UhbBvPA==
+  Columns  : Id#AgentNameA#AgentNameE#Nationality_Id#DescriptionA#DescriptionE#Address#Telephon1#Telephon2#Telephon3#Telephon4#Telephon5#WebSite#Email#Facebook#Owner#ResponibleName#ResponibleMobile#IsActive#IsBlocked#WhatsUp#imported
+
+BOOKING_TYPE_TABLE_NAME  (GetBookingTypes.js)
+  Encrypted: iwU46md4fZgu50s2IIy29g==
+  Columns  : Id#TypeNameA#TypeNameE#imported
+
+CITY_TABLE_NAME  (GetCities.js)
+  Encrypted: 0MomPyA4q+4ZMI8avKbfUg==
+  Columns  : Id#CityNameA#CityNameE#Country_id#imported
+
+CUSTOMER_TABLE_NAME  (GetCustomers.js)
+  Encrypted: DEYAHkEIviEOHk46+hBdWg==
+  Columns  : Id#Hotel_Id#CustomerNameA#CustomerNameE#Email#Mobile#WhatsUp#Nationality_Id#IdNum#IdNum_Attach#PassportNum#PresidenceNum#PassportNum_Attach#PresidenceNum_Attach#Customer_Id#IsBlacklist#Gender_Id
+
+EMPLOYEE_TABLE_NAME  (GetEmployees.js)
+  Encrypted: JpzjWnAp8WjlK4QK760mBw==
+  Columns  : Id#Hotel_Id#EmployeeNameA#EmployeeNameE#HotelSection_Id#HotelGroup_Id#Email#Mobile#WhatsUp#Nationality_Id#IdNum#IdNum_Attach#PassportNum#PresidenceNum#PassportNum_Attach#PresidenceNum_Attach#IsActive#User_id#JobTitle#LoginName#Password
+
+EXTRA_FEATURE_TABLE_NAME  (GetExtraFeatures.js)
+  Encrypted: ROixian4PsBoTIQ1d+UXNQ==
+  Columns  : Id#FreatureNameA#FreatureNameE#FeaturePrice#imported
+
+HOTEL_FEATURES_TABLE_NAME  (GetHotelData.js)
+  Encrypted: rZP0e46GX+c9UaiEIEcvYA==
+  Columns  : Id#Hotel_Id#Feature
+
+HOTEL_IMAGES_TABLE_NAME  (GetHotelData.js)
+  Encrypted: z40Qd4UfEYx2QPWD0iZkWw==
+  Columns  : Id#Hotel_Id#ImageId#ImageDescA#ImageDescE
+
+HOTEL_SECTION_TABLE_NAME  (GetHotelSections.js)
+  Encrypted: NarFh0MTDf1uTqzL/ozUsA==
+  Columns  : Id#Hotel_Id#SectionNameA#SectionNameE#Manager_Id#Role_Id
+
+HOTEL_SERVICE_TABLE_NAME  (GetHotelServices.js)
+  Encrypted: TB/BX4vGh+T7SAUYVXssKQ==
+  Columns  : Id#ServiceNameA#ServiceNameE#ServiceDescA#ServiceDescE#ServicePrice#imported
+
+NATIONALITY_TABLE_NAME  (GetNationalities.js)
+  Encrypted: DITBo1zqaUFiIO/E6qF0kg==
+  Columns  : Id#NationalityNameA#NationalityNameE#imported
+
+HOTEL_GROUP_TABLE_NAME  (GetPermissionGroups.js)
+  Encrypted: lolGTk7UHPQv08Nx4CTolQ==
+  Columns  : Id#Hotel_Id#HotelSection_Id#GroupNameA#GroupNameE#IsActive
+
+RESERVATION_TABLE_NAME  (GetReservations.js)
+  Encrypted: 1Xx5r4QVCRAA5fv+CZ63Fg==
+  Columns  : Id#Hotel_Id#ReservationNum#ReservationDate#ReservationType_Id#Agent_Id#Customer_Id#FromDate#ToDate#PersonsCount#AudultsCount#ChildrenCount#RoomsCount#TotalReservationAmount#DownPayment#Status#StatusRemarks#IsApproved#ApprovedDate#ApprovedBy
+
+RESERVATION_UNIT_TABLE_NAME  (GetReservations.js)
+  Encrypted: DPvCLQgCzv1ahaFcgjj8f4a69yg/NIQmIIe2PaDHtN0=
+  Columns  : Id#Reservation_Id#UnitName_Id#UnitAddFeature_Id#PersonsCountPerUnit#UnitsCount#UnitPricePerNight#TotalNightsCount#TotalPrice#FromDate#ToDate#Hotel_id
+
+UNIT_ASSIGNMENT_TABLE_NAME  (GetReservations.js)
+  Encrypted: oo0xSUDBgNmqRfwvq1Hmwg==
+  Columns  : Id#Hotel_Id#AssignmentNum#AssignDate#AssignType#Reservation_Id#ReservationType_Id#Agent_Id#Customer_Id#FromDate#ToDate#PersonsCount#AudultsCount#ChildrenCount#RoomsCount#TotalReservationAmount#DownPayment#Status#StatusRemarks
+
+UNIT_ASSIGNMENT_UNITS_TABLE_NAME  (GetReservations.js)
+  Encrypted: ZAjqiId7hr6wIs6Z9Dba/T7z+0Mi1Sv9bhnytqOyHeA=
+  Columns  : (see source: special column sets)
+
+UNIT_ASSIGNMENT_PERSONS_TABLE_NAME  (GetReservations.js)
+  Encrypted: iN4+CZDtKgmrQ7/eBznsICXGVnYNL5rKWNvyBWP//iY=
+  Columns  : (see source: special column sets)
+
+UNIT_STATUS_TABLE_NAME  (GetUnitStatuses.js)
+  Encrypted: 4unBuiAHcK0KOH2QQGB9LQ==
+  Columns  : Id#StatusNameA#StatusNameE#imported
+
+UNIT_TITLE_TABLE_NAME  (GetUnitTitles.js)
+  Encrypted: jGnqTa5IYAJP4AN9vtMLQg==
+  Columns  : Id#UnitNameA#UnitNameE#imported
+
+Multi-table calls (DoMultiTransactionManager; table names joined with '^'):
+  - RESERVATION_TABLE_NAME ^ RESERVATION_UNIT_TABLE_NAME ^ ...   (new booking)
+  - UNIT_ASSIGNMENT_UNITS_TABLE_NAME ^ UNIT_ASSIGNMENT_PERSONS_TABLE_NAME ^ ...   (allocation / check-in)
+  Special column sets (GetReservations.js): Id#TotalReservationAmount, Id#Status,
+  Id#ToDate#TotalNightsCount#TotalPrice
