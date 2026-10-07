@@ -2,6 +2,7 @@ import axios from "axios";
 import { AES256Encryption } from "../../utils/encryption";
 import { getBackendEndpoint, getDataToken } from "../lib/runtimeConfig";
 import { Checklogin } from "../utils/auth/Checklogin";
+import { getOrCreateDeviceSerial } from "../utils/auth/deviceSerial";
 import {
   applySessionStamps,
   buildLegacyAuthHeaders,
@@ -100,7 +101,7 @@ export const executeProcedure = async (ProcedureName, procedureValues) => {
 /**
  * checkLogin
  * ProcedureName: 7lgMl3DLGpYu7xln2ZexiA==
- * ParametersValues: Email#Pass#Encrypt#moduleNum
+ * ParametersValues: Email#Pass#DeviceSerial#moduleNum#Encrypt
  * Encrypt placeholder: "$????", moduleNum: 1
  *
  * Goes through the Checklogin endpoint; on success `auth` carries the
@@ -109,14 +110,17 @@ export const executeProcedure = async (ProcedureName, procedureValues) => {
 export const checkLogin = async (email, password, encrypt = "$????") => {
   const safeEmail = String(email ?? "").trim();
   const safePassword = String(password ?? "");
-  const ParametersValue = `${safeEmail}#${safePassword}#${encrypt}#1`;
+  const deviceSerial = getOrCreateDeviceSerial();
+  const ParametersValue = `${safeEmail}#${safePassword}#${deviceSerial}#1#${encrypt}`;
 
   try {
     const response = await Checklogin({
       ProcedureName: "",
       ParametersValue,
       AuthType: "Email",
-      SendTo: safeEmail,
+      FunctionName: "",
+      SendTo: "",
+      DeviceSerial: deviceSerial,
     });
 
     if (Number(response?.status) !== 200) {

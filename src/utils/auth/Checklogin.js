@@ -11,13 +11,15 @@ export async function Checklogin({
   ParametersValue,
   AuthType,
   SendTo = '',
+  DeviceSerial,
   retries = 3,
   signal,
 }) {
   while (retries > 0) {
     try {
       const payload = { ProcedureName, ParametersValue, AuthType, SendTo }
-      if (FunctionName) payload.FunctionName = FunctionName
+      if (FunctionName !== undefined) payload.FunctionName = FunctionName
+      if (DeviceSerial) payload.DeviceSerial = DeviceSerial
       const result = await postToBackend({ endpoint: 'Checklogin', payload, signal })
       if (result.status === 201 && --retries > 0) continue
       return result

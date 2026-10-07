@@ -13,7 +13,7 @@ Backend base URL : see public/config.json ("url"); DataToken: "Hotels"
 --------------------------------------------------------------------------------
 0) ENDPOINTS USED
 --------------------------------------------------------------------------------
-Checklogin                 login (ProcedureName sent as "" ; ParametersValue = Email#Pass#$????#1)
+Checklogin                 login (ProcedureName sent as "" ; ParametersValue = Email#Pass#DeviceSerial#1#$????)
 RefreshToken               JWT refresh
 ExecuteProcedureManager    all stored procedures in section 1
 DoTransactionManager       add / edit / delete rows on tables in section 2
