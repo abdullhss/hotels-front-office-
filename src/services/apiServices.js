@@ -2,6 +2,7 @@ import axios from "axios";
 import { AES256Encryption } from "../../utils/encryption";
 import { getBackendEndpoint, getDataToken } from "../lib/runtimeConfig";
 import { Checklogin } from "../utils/auth/Checklogin";
+import { ExecuteAuthentication } from "../utils/auth/ExecuteAuthentication";
 import { getOrCreateDeviceSerial } from "../utils/auth/deviceSerial";
 import {
   applySessionStamps,
@@ -119,7 +120,7 @@ export const checkLogin = async (email, password, encrypt = "$????") => {
       ParametersValue,
       AuthType: "Email",
       FunctionName: "",
-      SendTo: "",
+      SendTo: safeEmail,
       DeviceSerial: deviceSerial,
     });
 
@@ -131,6 +132,60 @@ export const checkLogin = async (email, password, encrypt = "$????") => {
       };
     }
 
+    // Step 1 of the OTP login: credentials accepted, code emailed, TransToken ties it to this attempt.
+    if (response?.TransToken && !response?.Data) {
+      return {
+        success: true,
+        authenticated: false,
+        otpRequired: true,
+        transToken: response.TransToken,
+        deviceSerial,
+        message: "",
+      };
+    }
+
+    return buildLoginResult(response);
+  } catch (error) {
+    return {
+      success: false,
+      authenticated: false,
+      message: error?.message || "Login request failed",
+    };
+  }
+};
+
+/**
+ * Step 2 of the OTP login: verifies the emailed code against the TransToken
+ * and returns the same shape as a successful checkLogin.
+ */
+export const verifyLoginOtp = async (transToken, verCode, deviceSerial) => {
+  try {
+    const response = await ExecuteAuthentication({
+      TransToken: transToken,
+      VerCode: String(verCode ?? "").trim(),
+      DeviceSerial: deviceSerial,
+    });
+
+    if (Number(response?.status) !== 200) {
+      return {
+        success: false,
+        authenticated: false,
+        message: response?.error || "Verification failed",
+      };
+    }
+
+    return buildLoginResult(response);
+  } catch (error) {
+    return {
+      success: false,
+      authenticated: false,
+      message: error?.message || "Verification failed",
+    };
+  }
+};
+
+function buildLoginResult(response) {
+  {
     const decrypted = response?.Data?.Result?.[0] ?? null;
     const rawResult =
       decrypted?.Result ??
@@ -168,14 +223,8 @@ export const checkLogin = async (email, password, encrypt = "$????") => {
       },
       message: authenticated ? "" : (decrypted?.Message || decrypted?.message || "Invalid credentials"),
     };
-  } catch (error) {
-    return {
-      success: false,
-      authenticated: false,
-      message: error?.message || "Login request failed",
-    };
   }
-};
+}
 
 export const DoTransaction = async (tableName, ColumnsValues, WantedAction = 0, ColumnsNames = null) => {
   try {

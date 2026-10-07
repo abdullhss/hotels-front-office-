@@ -27,6 +27,11 @@ const resources = {
         loading: 'جاري تسجيل الدخول...',
         requiredFields: 'برجاء إدخال اسم المستخدم وكلمة المرور',
         invalidCredentials: 'بيانات الدخول غير صحيحة',
+        otpSent: 'تم إرسال رمز التحقق إلى بريدك الإلكتروني',
+        otpRequired: 'برجاء إدخال رمز التحقق',
+        otpLabel: 'رمز التحقق',
+        otpSubmit: 'تأكيد',
+        otpBack: 'رجوع',
         success: 'تم تسجيل الدخول بنجاح',
       },
       table: {
@@ -536,6 +541,11 @@ const resources = {
         loading: 'Signing in...',
         requiredFields: 'Please enter username and password',
         invalidCredentials: 'Invalid credentials',
+        otpSent: 'A verification code was sent to your email',
+        otpRequired: 'Please enter the verification code',
+        otpLabel: 'Verification code',
+        otpSubmit: 'Verify',
+        otpBack: 'Back',
         success: 'Signed in successfully',
       },
       table: {

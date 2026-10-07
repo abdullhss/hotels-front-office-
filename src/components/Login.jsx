@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
-import { checkLogin } from '../services/apiServices'
+import { checkLogin, verifyLoginOtp } from '../services/apiServices'
 import { saveSession } from '../utils/auth/sessionManager'
 import { startTokenRefreshScheduler } from '../utils/auth/tokenRefreshManager'
 
@@ -18,6 +18,8 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [otpSession, setOtpSession] = useState(null)
+  const [otp, setOtp] = useState('')
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -32,6 +34,30 @@ function Login() {
     const result = await checkLogin(email, password)
     setIsSubmitting(false)
 
+    if (result?.otpRequired) {
+      setOtpSession({ transToken: result.transToken, deviceSerial: result.deviceSerial })
+      setOtp('')
+      toast.success(t('login.otpSent'))
+      return
+    }
+
+    completeLogin(result)
+  }
+
+  const handleVerifyOtp = async (event) => {
+    event.preventDefault()
+    if (!otp.trim()) {
+      toast.error(t('login.otpRequired'))
+      return
+    }
+
+    setIsSubmitting(true)
+    const result = await verifyLoginOtp(otpSession.transToken, otp, otpSession.deviceSerial)
+    setIsSubmitting(false)
+    completeLogin(result)
+  }
+
+  const completeLogin = (result) => {
     const rawUserData = result?.data?.userData
     let parsedUserData = []
 
@@ -92,6 +118,35 @@ function Login() {
           {t('login.description')}
         </p>
 
+        {otpSession ? (
+          <form className="grid gap-3" onSubmit={handleVerifyOtp}>
+            <label className="grid gap-[7px]">
+              <span className="text-[0.84rem] text-[rgba(232,236,255,0.9)]">{t('login.otpLabel')}</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={otp}
+                onChange={(event) => setOtp(event.target.value)}
+                className="h-12 w-full box-border rounded-[999px] border border-[rgba(121,133,188,0.45)] bg-[rgba(13,18,39,0.52)] px-[18px] text-[0.95rem] text-[#f9faff] outline-none placeholder:text-[rgba(184,193,227,0.86)] focus:border-[#7887ff] focus:shadow-[0_0_0_3px_rgba(120,135,255,0.2)]"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="mt-1 h-[50px] cursor-pointer rounded-[999px] border-none bg-[linear-gradient(135deg,#6556ff,#5a42f1)] text-base font-semibold text-white"
+            >
+              {isSubmitting ? t('login.loading') : t('login.otpSubmit')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setOtpSession(null)}
+              className="cursor-pointer border-none bg-transparent text-[0.9rem] text-[rgba(227,232,255,0.84)]"
+            >
+              {t('login.otpBack')}
+            </button>
+          </form>
+        ) : (
         <form className="grid gap-3" onSubmit={handleSubmit}>
           <label className="grid gap-[7px]">
             <span className="text-[0.84rem] text-[rgba(232,236,255,0.9)]">
@@ -158,6 +213,7 @@ function Login() {
             {isSubmitting ? t('login.loading') : t('login.submit')}
           </button>
         </form>
+        )}
 
         <div className="mt-[26px] flex justify-start gap-[10px]">
           <button
