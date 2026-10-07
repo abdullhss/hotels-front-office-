@@ -111,7 +111,7 @@ export const checkLogin = async (email, password, encrypt = "$????") => {
   const safeEmail = String(email ?? "").trim();
   const safePassword = String(password ?? "");
   const deviceSerial = getOrCreateDeviceSerial();
-  const ParametersValue = `${safeEmail}#${safePassword}#${deviceSerial}#1#${encrypt}`;
+  const ParametersValue = `${safeEmail}#${safePassword}#${deviceSerial}#${encrypt}#1`;
 
   try {
     const response = await Checklogin({
